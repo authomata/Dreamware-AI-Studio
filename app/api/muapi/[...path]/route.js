@@ -2,7 +2,7 @@ export async function GET(request, { params }) {
   const resolvedParams = await params;
   const path = resolvedParams.path.join('/');
   const url = new URL(request.url);
-  const targetUrl = `https://api.muapi.ai/api/v1/${path}${url.search}`;
+  const targetUrl = `https://api.muapi.ai/${path}${url.search}`;
   const apiKey = request.headers.get('x-api-key');
   const response = await fetch(targetUrl, {
     method: 'GET',
@@ -18,7 +18,7 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   const resolvedParams = await params;
   const path = resolvedParams.path.join('/');
-  const targetUrl = `https://api.muapi.ai/api/v1/${path}`;
+  const targetUrl = `https://api.muapi.ai/${path}`;
   const apiKey = request.headers.get('x-api-key');
   const contentType = request.headers.get('content-type') || '';
   let body, headers = { 'x-api-key': apiKey };

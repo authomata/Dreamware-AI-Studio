@@ -1,17 +1,23 @@
 export async function GET(request, { params }) {
-  const path = (await params).path.join('/');
+  const resolvedParams = await params;
+  const path = resolvedParams.path.join('/');
   const url = new URL(request.url);
   const targetUrl = `https://api.muapi.ai/api/v1/${path}${url.search}`;
   const apiKey = request.headers.get('x-api-key');
   const response = await fetch(targetUrl, {
-    headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
+    method: 'GET',
+    headers: { 'x-api-key': apiKey },
   });
-  const data = await response.json();
-  return Response.json(data, { status: response.status });
+  const text = await response.text();
+  return new Response(text, {
+    status: response.status,
+    headers: { 'Content-Type': response.headers.get('content-type') || 'application/json' },
+  });
 }
 
 export async function POST(request, { params }) {
-  const path = (await params).path.join('/');
+  const resolvedParams = await params;
+  const path = resolvedParams.path.join('/');
   const targetUrl = `https://api.muapi.ai/api/v1/${path}`;
   const apiKey = request.headers.get('x-api-key');
   const contentType = request.headers.get('content-type') || '';
@@ -23,6 +29,10 @@ export async function POST(request, { params }) {
     headers['Content-Type'] = 'application/json';
   }
   const response = await fetch(targetUrl, { method: 'POST', headers, body });
-  const data = await response.json();
-  return Response.json(data, { status: response.status });
+  const text = await response.text();
+  console.log('PROXY:', targetUrl, '| STATUS:', response.status, '| BODY:', text.slice(0, 200));
+  return new Response(text, {
+    status: response.status,
+    headers: { 'Content-Type': response.headers.get('content-type') || 'application/json' },
+  });
 }

@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Open Generative AI — Free AI Image & Video Studio',
+  title: 'Dreamware AI Studio',
   description: 'Generate AI images and videos using 200+ models — Flux, Midjourney, Kling, Veo, Seedance and more. Free open-source alternative to Higgsfield AI.',
 };
 

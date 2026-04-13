@@ -23,7 +23,7 @@ export default function ApiKeyModal({ onSave }) {
             </svg>
           </div>
           <h1 className="text-xl font-bold text-white tracking-tight mb-2">
-            Open Generative AI
+            Dreamware AI Studio
           </h1>
           <p className="text-white/40 text-[13px] leading-relaxed px-4">
             Enter your <a href="https://muapi.ai/access-keys" target="_blank" rel="noreferrer" className="text-[#d9ff00] hover:text-[#e5ff33] transition-colors">Muapi.ai</a> API key to start creating

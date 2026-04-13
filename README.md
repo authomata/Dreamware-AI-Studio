@@ -1,4 +1,4 @@
-# Open Generative AI — Open-Source Alternative to Higgsfield AI, Freepik, Krea, Openart AI
+# Dreamware AI Studio — Open-Source Alternative to Higgsfield AI, Freepik, Krea, Openart AI
 
 > **The free, open-source alternative to Higgsfield AI, Freepik, Krea, Openart AI.** Generate AI images and videos using 200+ state-of-the-art models — without the closed ecosystem or subscription fees.
 
@@ -18,9 +18,9 @@ One-click installers — no Node.js or terminal required.
 
 | Platform | Download |
 |---|---|
-| macOS Apple Silicon (M1/M2/M3/M4) | [Open Generative AI-1.0.0-arm64.dmg](https://github.com/Anil-matcha/Open-Generative-AI/releases/download/v1.0.0/Open.Generative.AI-1.0.0-arm64.dmg) |
-| macOS Intel (x64) | [Open Generative AI-1.0.0.dmg](https://github.com/Anil-matcha/Open-Generative-AI/releases/download/v1.0.0/Open.Generative.AI-1.0.0.dmg) |
-| Windows (x64 + ARM64) | [Open Generative AI Setup 1.0.0.exe](https://github.com/Anil-matcha/Open-Generative-AI/releases/download/v1.0.0/Open.Generative.AI.Setup.1.0.0.exe) |
+| macOS Apple Silicon (M1/M2/M3/M4) | [Dreamware AI Studio-1.0.0-arm64.dmg](https://github.com/Anil-matcha/Open-Generative-AI/releases/download/v1.0.0/Open.Generative.AI-1.0.0-arm64.dmg) |
+| macOS Intel (x64) | [Dreamware AI Studio-1.0.0.dmg](https://github.com/Anil-matcha/Open-Generative-AI/releases/download/v1.0.0/Open.Generative.AI-1.0.0.dmg) |
+| Windows (x64 + ARM64) | [Dreamware AI Studio Setup 1.0.0.exe](https://github.com/Anil-matcha/Open-Generative-AI/releases/download/v1.0.0/Open.Generative.AI.Setup.1.0.0.exe) |
 
 All releases: [github.com/Anil-matcha/Open-Generative-AI/releases](https://github.com/Anil-matcha/Open-Generative-AI/releases)
 
@@ -32,7 +32,7 @@ Because the app is not notarized by Apple, macOS Gatekeeper will block it on fir
 
 **Step 2** — Open Terminal and run:
 ```bash
-xattr -cr "/Applications/Open Generative AI.app"
+xattr -cr "/Applications/Dreamware AI Studio.app"
 ```
 
 **Step 3** — Right-click the app in `/Applications` → click **Open** → click **Open** again on the dialog
@@ -42,7 +42,7 @@ xattr -cr "/Applications/Open Generative AI.app"
 **Alternative (no Terminal):**
 1. Try to open the app — macOS will block it
 2. Go to **System Settings → Privacy & Security**
-3. Scroll down to find _"Open Generative AI was blocked"_
+3. Scroll down to find _"Dreamware AI Studio was blocked"_
 4. Click **Open Anyway** → **Open**
 
 ### Windows Installation — SmartScreen warning fix
@@ -56,9 +56,9 @@ The app will install silently to `%LocalAppData%` with a Start Menu shortcut.
 
 ---
 
-Open Generative AI is an open-source AI image, video, cinema, and lip sync studio that brings creative workflows to everyone. Powered by [Muapi.ai](https://muapi.ai), it supports text-to-image, image-to-image, text-to-video, image-to-video, and audio-driven lip sync generation across models like Flux, Nano Banana, Midjourney, Kling, Sora, Veo, Seedream, Infinite Talk, LTX Lipsync, Wan 2.2, and more — all from a sleek, modern interface you can self-host and customize.
+Dreamware AI Studio is an open-source AI image, video, cinema, and lip sync studio that brings creative workflows to everyone. Powered by [Muapi.ai](https://muapi.ai), it supports text-to-image, image-to-image, text-to-video, image-to-video, and audio-driven lip sync generation across models like Flux, Nano Banana, Midjourney, Kling, Sora, Veo, Seedream, Infinite Talk, LTX Lipsync, Wan 2.2, and more — all from a sleek, modern interface you can self-host and customize.
 
-**Why Open Generative AI instead of Higgsfield AI, Freepik, Krea AI, Openart AI?**
+**Why Dreamware AI Studio instead of Higgsfield AI, Freepik, Krea AI, Openart AI?**
 - **Free & open-source** — no subscription, no vendor lock-in
 - **Self-hosted** — your data stays on your machine
 - **200+ models** — text-to-image, image-to-image, text-to-video, image-to-video, lip sync
@@ -320,9 +320,9 @@ Lip sync jobs use the same two-step pattern: a dedicated `processLipSync()` meth
 
 ## 🤔 How is this different from Higgsfield AI, Freepik, Krea, Openart AI?
 
-**Open Generative AI** is a community-driven, open-source alternative that provides similar creative capabilities without the closed ecosystem:
+**Dreamware AI Studio** is a community-driven, open-source alternative that provides similar creative capabilities without the closed ecosystem:
 
-| | Other providers | Open Generative AI |
+| | Other providers | Dreamware AI Studio |
 | :--- | :--- | :--- |
 | **Cost** | Subscription-based | Free (open-source) |
 | **Models** | Proprietary | 200+ open & commercial models |
@@ -346,6 +346,6 @@ Built with [Muapi.ai](https://muapi.ai) — the unified API for AI image and vid
 **Deep Dive**: For more details on the "AI Influencer" engine, upcoming "Popcorn" storyboarding features, and the future of this project, read the [full technical overview](https://medium.com/@anilmatcha/).
 
 ---
-*Looking for a free Higgsfield AI, Freepik, Krea, Openart AI alternative? Open Generative AI is an open-source AI image and video generation studio and Higgsfield AI, Freepik, Krea, Openart AI replacement that you can self-host, customize, and extend.*
+*Looking for a free Higgsfield AI, Freepik, Krea, Openart AI alternative? Dreamware AI Studio is an open-source AI image and video generation studio and Higgsfield AI, Freepik, Krea, Openart AI replacement that you can self-host, customize, and extend.*
 
 This project is an independent, experimental, and open-source initiative and is not affiliated with, endorsed by, or associated with Higgsfield Inc., Freepik, Krea AI, OpenArt AI, or any of their respective companies, products, or services. Any references to third-party platforms, models, or technologies are made solely for interoperability, benchmarking, research, or educational purposes. All trademarks, logos, and brand names are the property of their respective owners. If any content in this repository creates confusion or raises concerns, please contact us and we will promptly review and address it.

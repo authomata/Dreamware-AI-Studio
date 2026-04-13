@@ -21,7 +21,7 @@
   },
   "build": {
     "appId": "ai.generative.open",
-    "productName": "Open Generative AI",
+    "productName": "Dreamware AI Studio",
     "copyright": "Copyright © 2025",
     "directories": { "output": "release" },
     "afterPack": "./afterPack.js",

@@ -738,6 +738,12 @@ export default function ImageStudio({
   const [prompt, setPrompt] = useState("");
   const [uploadedImageUrls, setUploadedImageUrls] = useState([]);
 
+  // ── Character state ─────────────────────────────────────────────────────
+  const [activeCharacter, setActiveCharacter] = useState(null); // { id, name, triggerPrompt, referenceImages, ... }
+  const [savedCharacters, setSavedCharacters] = useState([]);
+  const [charPickerOpen, setCharPickerOpen] = useState(false);
+  const charPickerRef = useRef(null);
+
   // ── UI state ────────────────────────────────────────────────────────────
   const [dropdownOpen, setDropdownOpen] = useState(null); // 'model' | 'ar' | 'quality' | null
   const [generating, setGenerating] = useState(false);
@@ -756,6 +762,74 @@ export default function ImageStudio({
   const textareaRef = useRef(null);
   const dropdownRef = useRef(null);
   const uploadPickerResetRef = useRef(null); // not used directly — managed via key
+
+  // ── Load saved characters from localStorage ─────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("dw_characters");
+      if (raw) setSavedCharacters(JSON.parse(raw));
+    } catch {}
+    // Listen for storage changes (e.g. user creates a character in another tab)
+    const handler = (e) => {
+      if (e.key === "dw_characters") {
+        try { setSavedCharacters(JSON.parse(e.newValue || "[]")); } catch {}
+      }
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+
+  // ── Character select / deselect ─────────────────────────────────────────
+  const handleCharacterSelect = useCallback(
+    (character) => {
+      setActiveCharacter(character);
+      setCharPickerOpen(false);
+
+      // Load reference images and switch to i2i mode
+      if (character.referenceImages?.length > 0) {
+        const urls = character.referenceImages;
+        setUploadedImageUrls(urls);
+        if (!imageMode) {
+          const firstI2I = i2iModels[0];
+          const ars = getAspectRatiosForI2IModel(firstI2I.id);
+          const resolutions = getResolutionsForI2IModel(firstI2I.id);
+          setImageMode(true);
+          setSelectedModelId(firstI2I.id);
+          setSelectedModelName(firstI2I.name);
+          setSelectedAr(ars[0] || "1:1");
+          setSelectedQuality(resolutions[0] || null);
+          setMaxImages(getMaxImagesForI2IModel(firstI2I.id));
+        }
+      }
+    },
+    [imageMode]
+  );
+
+  const handleCharacterDeselect = useCallback(() => {
+    setActiveCharacter(null);
+    setUploadedImageUrls([]);
+    setImageMode(false);
+    const firstT2I = t2iModels[0];
+    const ars = getAspectRatiosForModel(firstT2I.id);
+    const resolutions = getResolutionsForModel(firstT2I.id);
+    setSelectedModelId(firstT2I.id);
+    setSelectedModelName(firstT2I.name);
+    setSelectedAr(ars[0] || "1:1");
+    setSelectedQuality(resolutions[0] || null);
+    setMaxImages(1);
+  }, []);
+
+  // ── Close character picker on outside click ─────────────────────────────
+  useEffect(() => {
+    if (!charPickerOpen) return;
+    const handler = (e) => {
+      if (charPickerRef.current && !charPickerRef.current.contains(e.target)) {
+        setCharPickerOpen(false);
+      }
+    };
+    window.addEventListener("click", handler);
+    return () => window.removeEventListener("click", handler);
+  }, [charPickerOpen]);
 
   // ── Close dropdown on outside click ─────────────────────────────────────
   useEffect(() => {
@@ -942,6 +1016,13 @@ export default function ImageStudio({
     setGenerating(true);
     setGenerateError(null);
 
+    // Build final prompt: prepend character trigger if active
+    const characterPrefix = activeCharacter?.triggerPrompt?.trim();
+    const userPrompt = prompt.trim();
+    const fullPrompt = characterPrefix && userPrompt
+      ? `${characterPrefix}, ${userPrompt}`
+      : characterPrefix || userPrompt;
+
     try {
       let res;
       if (imageMode) {
@@ -951,7 +1032,7 @@ export default function ImageStudio({
           image_url: uploadedImageUrls[0],
           aspect_ratio: selectedAr,
         };
-        if (prompt.trim()) genParams.prompt = prompt.trim();
+        if (fullPrompt) genParams.prompt = fullPrompt;
         if (currentQualityField && selectedQuality) {
           genParams[currentQualityField] = selectedQuality;
         }
@@ -959,7 +1040,7 @@ export default function ImageStudio({
       } else {
         const genParams = {
           model: selectedModelId,
-          prompt: prompt.trim(),
+          prompt: fullPrompt,
           aspect_ratio: selectedAr,
         };
         if (currentQualityField && selectedQuality) {
@@ -1127,6 +1208,32 @@ export default function ImageStudio({
         style={{ animationDelay: "0.2s" }}
       >
         <div className="w-full bg-[#0a0a0a]/80 backdrop-blur-3xl rounded-md border border-white/10 p-4 flex flex-col gap-2 shadow-2xl">
+          {/* Character badge (shown when a character is active) */}
+          {activeCharacter && (
+            <div className="flex items-center gap-2 px-1">
+              <div className="flex items-center gap-2 px-2.5 py-1 bg-primary/10 border border-primary/20 rounded-lg">
+                {activeCharacter.thumbnail && (
+                  <img src={activeCharacter.thumbnail} alt="" className="w-4 h-4 rounded-full object-cover" />
+                )}
+                <span className="text-[11px] font-semibold text-primary">{activeCharacter.name}</span>
+                {activeCharacter.triggerPrompt && (
+                  <span className="text-[10px] text-primary/50 max-w-[180px] truncate hidden sm:block">
+                    — {activeCharacter.triggerPrompt}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCharacterDeselect}
+                  className="ml-1 text-primary/60 hover:text-primary transition-colors"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Top row: upload picker + textarea */}
           <div className="flex items-center gap-2">
             <UploadButton
@@ -1153,6 +1260,82 @@ export default function ImageStudio({
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-2 border-t border-white/[0.03] relative">
             {/* Left controls */}
             <div className="flex items-center gap-2 relative flex-wrap pb-1 md:pb-0">
+              {/* Character picker button */}
+              <div className="relative" ref={charPickerRef}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCharPickerOpen((o) => !o);
+                    setDropdownOpen(null);
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all border whitespace-nowrap ${
+                    activeCharacter
+                      ? "bg-primary/10 border-primary/30 text-primary"
+                      : "bg-white/[0.03] hover:bg-white/[0.06] border-white/[0.03] text-white/70 hover:text-primary"
+                  } group`}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+                  </svg>
+                  <span className="text-xs font-semibold">
+                    {activeCharacter ? activeCharacter.name : "Character"}
+                  </span>
+                </button>
+
+                {charPickerOpen && (
+                  <div className="absolute bottom-[calc(100%+12px)] left-0 z-50 bg-[#0a0a0a] rounded-xl p-3 shadow-2xl border border-white/10 w-64">
+                    <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Your Characters</p>
+                    {savedCharacters.length === 0 ? (
+                      <p className="text-xs text-white/30 py-2 text-center">No characters yet — create one in the Characters tab</p>
+                    ) : (
+                      <div className="flex flex-col gap-1 max-h-52 overflow-y-auto custom-scrollbar">
+                        {savedCharacters.map((char) => (
+                          <button
+                            key={char.id}
+                            type="button"
+                            onClick={() => handleCharacterSelect(char)}
+                            className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all hover:bg-white/5 ${
+                              activeCharacter?.id === char.id ? "bg-primary/10 border border-primary/20" : ""
+                            }`}
+                          >
+                            {char.thumbnail ? (
+                              <img src={char.thumbnail} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 border border-white/10" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 border border-white/5">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/30">
+                                  <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+                                </svg>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-white truncate">{char.name}</p>
+                              {char.triggerPrompt && (
+                                <p className="text-[10px] text-white/30 truncate">{char.triggerPrompt}</p>
+                              )}
+                            </div>
+                            {activeCharacter?.id === char.id && (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d9ff00" strokeWidth="3" className="flex-shrink-0">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {activeCharacter && (
+                      <button
+                        type="button"
+                        onClick={handleCharacterDeselect}
+                        className="w-full mt-2 py-1.5 text-[11px] text-white/40 hover:text-white/70 transition-colors text-center border-t border-white/5 pt-2"
+                      >
+                        Clear character
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Model button */}
               <div className="relative">
                 <button

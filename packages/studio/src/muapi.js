@@ -1,6 +1,6 @@
 import { getModelById, getVideoModelById, getI2IModelById, getI2VModelById, getV2VModelById, getLipSyncModelById } from './models.js';
 
-const BASE_URL = 'https://api.muapi.ai';
+const BASE_URL = typeof window !== 'undefined' ? '' : 'https://api.muapi.ai';
 
 async function pollForResult(requestId, key, maxAttempts = 900, interval = 2000) {
     const pollUrl = `${BASE_URL}/api/v1/predictions/${requestId}/result`;

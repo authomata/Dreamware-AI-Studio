@@ -902,12 +902,25 @@ export function ImageStudio() {
                     <button class="hist-download p-1.5 bg-primary rounded-lg text-black hover:scale-110 transition-transform" title="Download">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
                     </button>
+                    <button class="hist-delete p-1.5 bg-red-500/80 rounded-lg text-white hover:scale-110 hover:bg-red-500 transition-transform" title="Delete">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                    </button>
                 </div>
             `;
 
             thumb.onclick = (e) => {
                 if (e.target.closest('.hist-download')) {
                     downloadImage(entry.url, `muapi-${entry.id || idx}.jpg`);
+                    return;
+                }
+                if (e.target.closest('.hist-delete')) {
+                    generationHistory.splice(idx, 1);
+                    localStorage.setItem('muapi_history', JSON.stringify(generationHistory.slice(0, 50)));
+                    renderHistory();
+                    if (generationHistory.length === 0) {
+                        historySidebar.classList.add('translate-x-full', 'opacity-0');
+                        historySidebar.classList.remove('translate-x-0', 'opacity-100');
+                    }
                     return;
                 }
                 showImageInCanvas(entry.url);

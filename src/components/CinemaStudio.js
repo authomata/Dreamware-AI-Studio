@@ -421,12 +421,22 @@ export function CinemaStudio() {
 
             thumb.innerHTML = `
                 <img src="${entry.url}" class="w-full h-full object-cover opacity-80 group-hover/thumb:opacity-100 transition-opacity">
-                <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
-                    <span class="text-[8px] font-bold text-white uppercase">Load</span>
+                <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                    <button class="hist-delete p-1.5 bg-red-500/80 rounded-lg text-white hover:scale-110 hover:bg-red-500 transition-transform" title="Delete">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                    </button>
                 </div>
             `;
 
-            thumb.onclick = () => loadHistoryItem(entry, thumb);
+            thumb.onclick = (e) => {
+                if (e.target.closest('.hist-delete')) {
+                    generationHistory.splice(idx, 1);
+                    localStorage.setItem('cinema_history', JSON.stringify(generationHistory.slice(0, 50)));
+                    renderHistory();
+                    return;
+                }
+                loadHistoryItem(entry, thumb);
+            };
             historyList.appendChild(thumb);
         });
     };

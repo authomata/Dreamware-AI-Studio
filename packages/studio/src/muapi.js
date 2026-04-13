@@ -42,8 +42,29 @@ async function submitAndPoll(endpoint, payload, key, onRequestId, maxAttempts = 
     if (!requestId) return submitData;
     if (onRequestId) onRequestId(requestId);
     const result = await pollForResult(requestId, key, maxAttempts);
-    const outputUrl = result.outputs?.[0] || result.url || result.output?.url;
-    return { ...result, url: outputUrl };
+    // Normalize output URL — handle various response shapes
+    let outputUrl = null;
+    if (Array.isArray(result.outputs) && result.outputs.length > 0) {
+        outputUrl = result.outputs[0];
+    } else if (typeof result.outputs === 'string') {
+        outputUrl = result.outputs;
+    } else if (result.url) {
+        outputUrl = result.url;
+    } else if (result.output?.url) {
+        outputUrl = result.output.url;
+    } else if (result.output && typeof result.output === 'string') {
+        outputUrl = result.output;
+    } else if (result.data?.url) {
+        outputUrl = result.data.url;
+    } else if (result.result?.url) {
+        outputUrl = result.result.url;
+    } else if (result.image_url) {
+        outputUrl = result.image_url;
+    }
+    console.log('[muapi] poll result:', JSON.stringify(result).slice(0, 300), '→ url:', outputUrl);
+    // Also expose all outputs for multi-image models
+    const allOutputs = Array.isArray(result.outputs) ? result.outputs : (outputUrl ? [outputUrl] : []);
+    return { ...result, url: outputUrl, allOutputs };
 }
 
 export async function generateImage(apiKey, params) {

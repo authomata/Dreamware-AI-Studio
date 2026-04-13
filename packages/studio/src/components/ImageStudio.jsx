@@ -1049,25 +1049,29 @@ export default function ImageStudio({
         res = await generateImage(apiKey, genParams);
       }
 
-      if (res && res.url) {
+      const outputUrls = res?.allOutputs?.length > 0 ? res.allOutputs : (res?.url ? [res.url] : []);
+      if (outputUrls.length === 0) {
+        console.error("[ImageStudio] Full API response:", res);
+        throw new Error("No image URL returned by API");
+      }
+      // Add each output image to history (multi-image models return several)
+      outputUrls.forEach((url, i) => {
         const entry = {
-          id: res.id || Date.now().toString(),
-          url: res.url,
-          prompt: prompt.trim(),
+          id: (res.id || res.request_id || Date.now().toString()) + (i > 0 ? `-${i}` : ''),
+          url,
+          prompt: fullPrompt,
           model: selectedModelId,
           aspect_ratio: selectedAr,
           timestamp: new Date().toISOString(),
         };
         addToHistory(entry);
-        onGenerationComplete?.({
-          url: res.url,
-          model: selectedModelId,
-          prompt: prompt.trim(),
-          type: "image",
-        });
-      } else {
-        throw new Error("No image URL returned by API");
-      }
+      });
+      onGenerationComplete?.({
+        url: outputUrls[0],
+        model: selectedModelId,
+        prompt: fullPrompt,
+        type: "image",
+      });
     } catch (e) {
       console.error("[ImageStudio] Generation failed:", e);
       setGenerateError(e.message.slice(0, 80));

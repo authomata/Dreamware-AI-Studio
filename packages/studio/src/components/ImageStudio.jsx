@@ -718,6 +718,7 @@ export default function ImageStudio({
   apiKey,
   onGenerationComplete,
   historyItems,
+  onAnimate,
 }) {
   const PERSIST_KEY = "hg_image_studio_persistent";
 
@@ -743,6 +744,11 @@ export default function ImageStudio({
   const [savedCharacters, setSavedCharacters] = useState([]);
   const [charPickerOpen, setCharPickerOpen] = useState(false);
   const charPickerRef = useRef(null);
+
+  // ── @mention state ──────────────────────────────────────────────────────
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionAnchor, setMentionAnchor] = useState(null); // { start, end }
 
   // ── UI state ────────────────────────────────────────────────────────────
   const [dropdownOpen, setDropdownOpen] = useState(null); // 'model' | 'ar' | 'quality' | null
@@ -919,6 +925,43 @@ export default function ImageStudio({
     el.style.height = Math.min(el.scrollHeight, maxHeight) + "px";
   };
 
+  // ── @mention handlers ────────────────────────────────────────────────────
+  const handlePromptChange = (e) => {
+    const val = e.target.value;
+    setPrompt(val);
+    const cursor = e.target.selectionStart;
+    const textBefore = val.slice(0, cursor);
+    const match = textBefore.match(/@(\w*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionAnchor({ start: cursor - match[0].length, end: cursor });
+      setMentionOpen(true);
+    } else {
+      setMentionOpen(false);
+    }
+  };
+
+  const handleMentionSelect = (character) => {
+    const tag = `@${character.name.replace(/\s+/g, '_')}`;
+    const anchor = mentionAnchor || { start: 0, end: 0 };
+    const newPrompt = prompt.slice(0, anchor.start) + tag + ' ' + prompt.slice(anchor.end);
+    setPrompt(newPrompt);
+    setMentionOpen(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  };
+
+  const expandMentions = (text) => {
+    return text.replace(/@(\w+)/g, (match, tag) => {
+      const normalized = tag.replace(/_/g, ' ').toLowerCase();
+      const char = savedCharacters.find(
+        (c) =>
+          c.name.toLowerCase() === normalized ||
+          c.name.toLowerCase().replace(/\s+/g, '_') === tag.toLowerCase()
+      );
+      return char?.triggerPrompt ? char.triggerPrompt : match;
+    });
+  };
+
   // ── Upload picker callbacks ──────────────────────────────────────────────
   const handleUploadSelect = useCallback(
     ({ url, urls }) => {
@@ -1016,12 +1059,12 @@ export default function ImageStudio({
     setGenerating(true);
     setGenerateError(null);
 
-    // Build final prompt: prepend character trigger if active
+    // Build final prompt: expand @mentions, then prepend character trigger if active
     const characterPrefix = activeCharacter?.triggerPrompt?.trim();
-    const userPrompt = prompt.trim();
-    const fullPrompt = characterPrefix && userPrompt
-      ? `${characterPrefix}, ${userPrompt}`
-      : characterPrefix || userPrompt;
+    const expandedUserPrompt = expandMentions(prompt.trim());
+    const fullPrompt = characterPrefix && expandedUserPrompt
+      ? `${characterPrefix}, ${expandedUserPrompt}`
+      : characterPrefix || expandedUserPrompt;
 
     try {
       let res;
@@ -1139,6 +1182,21 @@ export default function ImageStudio({
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
                     </svg>
                   </button>
+                  {onAnimate && (
+                    <button
+                      type="button"
+                      title="Animate in Video Studio"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAnimate(entry.url);
+                      }}
+                      className="p-2 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-primary hover:text-black transition-all border border-white/10"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                    </button>
+                  )}
                   <button
                     type="button"
                     title="Delete"
@@ -1247,16 +1305,52 @@ export default function ImageStudio({
               onClear={handleUploadClear}
               initialUrls={uploadedImageUrls}
             />
-            <div className="flex-1 flex flex-col gap-2">
+            <div className="relative flex-1 flex flex-col gap-2">
               <textarea
                 ref={textareaRef}
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={handlePromptChange}
                 onInput={handleTextareaInput}
+                onBlur={() => setTimeout(() => setMentionOpen(false), 150)}
                 placeholder={placeholderText}
                 rows={1}
                 className="w-full bg-transparent border-none text-white text-sm placeholder:text-white/20 focus:outline-none resize-none pt-1 leading-relaxed min-h-[40px] max-h-[150px] md:max-h-[250px] overflow-y-auto custom-scrollbar"
               />
+
+              {/* @mention dropdown */}
+              {mentionOpen && savedCharacters.length > 0 && (
+                <div className="absolute bottom-[calc(100%+4px)] left-0 right-0 z-50 bg-[#0a0a0a] border border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-52 overflow-y-auto custom-scrollbar">
+                  {savedCharacters
+                    .filter((c) => c.name.toLowerCase().includes(mentionQuery.toLowerCase()))
+                    .map((char) => (
+                      <button
+                        key={char.id}
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); handleMentionSelect(char); }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-white/5 text-left transition-colors"
+                      >
+                        {char.thumbnail ? (
+                          <img src={char.thumbnail} alt="" className="w-7 h-7 rounded-lg object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/30">
+                              <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+                            </svg>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-white text-xs font-semibold block truncate">{char.name}</span>
+                          {char.triggerPrompt && (
+                            <p className="text-white/30 text-[10px] truncate">{char.triggerPrompt}</p>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  {savedCharacters.filter((c) => c.name.toLowerCase().includes(mentionQuery.toLowerCase())).length === 0 && (
+                    <p className="text-white/30 text-xs px-3 py-3 text-center">No characters match &ldquo;{mentionQuery}&rdquo;</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

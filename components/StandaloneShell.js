@@ -20,6 +20,12 @@ export default function StandaloneShell() {
   const [balance, setBalance] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
+  const [pendingAnimateUrl, setPendingAnimateUrl] = useState(null);
+
+  const handleAnimate = useCallback((imageUrl) => {
+    setPendingAnimateUrl(imageUrl);
+    setActiveTab('video');
+  }, []);
 
   const fetchBalance = useCallback(async (key) => {
     try {
@@ -122,8 +128,8 @@ export default function StandaloneShell() {
 
       {/* Studio Content */}
       <div className="flex-1">
-        {activeTab === 'image'     && <ImageStudio     apiKey={apiKey} />}
-        {activeTab === 'video'     && <VideoStudio     apiKey={apiKey} />}
+        {activeTab === 'image'     && <ImageStudio     apiKey={apiKey} onAnimate={handleAnimate} />}
+        {activeTab === 'video'     && <VideoStudio     apiKey={apiKey} initialImage={pendingAnimateUrl} onInitialImageConsumed={() => setPendingAnimateUrl(null)} />}
         {activeTab === 'lipsync'   && <LipSyncStudio   apiKey={apiKey} />}
         {activeTab === 'cinema'    && <CinemaStudio    apiKey={apiKey} />}
         {activeTab === 'character' && <CharacterStudio apiKey={apiKey} />}

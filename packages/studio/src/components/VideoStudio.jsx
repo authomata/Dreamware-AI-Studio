@@ -235,6 +235,8 @@ export default function VideoStudio({
   apiKey,
   onGenerationComplete,
   historyItems,
+  initialImage,
+  onInitialImageConsumed,
 }) {
   const PERSIST_KEY = "hg_video_studio_persistent";
 
@@ -443,6 +445,21 @@ export default function VideoStudio({
       hasRestored.current = true;
     }
   }, [applyControlsForModel, defaultModel.id]);
+
+  // ── Load image from "Animate" button in Image Studio ─────────────────────
+  useEffect(() => {
+    if (!initialImage) return;
+    setUploadedImageUrl(initialImage);
+    setUploadedVideoUrl(null);
+    setUploadedVideoName(null);
+    setV2vMode(false);
+    const firstI2V = i2vModels[0];
+    setImageMode(true);
+    setSelectedModel(firstI2V.id);
+    setSelectedModelName(firstI2V.name);
+    applyControlsForModel(firstI2V.id, true, false);
+    onInitialImageConsumed?.();
+  }, [initialImage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Persistence: Save ────────────────────────────────────────────────────
   useEffect(() => {

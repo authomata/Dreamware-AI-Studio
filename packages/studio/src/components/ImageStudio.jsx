@@ -942,11 +942,29 @@ export default function ImageStudio({
   };
 
   const handleMentionSelect = (character) => {
+    // 1. Insert text tag at cursor position
     const tag = `@${character.name.replace(/\s+/g, '_')}`;
     const anchor = mentionAnchor || { start: 0, end: 0 };
     const newPrompt = prompt.slice(0, anchor.start) + tag + ' ' + prompt.slice(anchor.end);
     setPrompt(newPrompt);
     setMentionOpen(false);
+
+    // 2. Load reference images additively (deduplicated)
+    if (character.referenceImages?.length > 0) {
+      setUploadedImageUrls((prev) => [...new Set([...prev, ...character.referenceImages])]);
+
+      // 3. Switch to i2i mode if not already
+      if (!imageMode) {
+        const firstI2I = i2iModels[0];
+        setImageMode(true);
+        setSelectedModelId(firstI2I.id);
+        setSelectedModelName(firstI2I.name);
+        setSelectedAr(getAspectRatiosForI2IModel(firstI2I.id)[0] || '1:1');
+        setSelectedQuality(getResolutionsForI2IModel(firstI2I.id)[0] || null);
+        setMaxImages(getMaxImagesForI2IModel(firstI2I.id));
+      }
+    }
+
     setTimeout(() => textareaRef.current?.focus(), 0);
   };
 

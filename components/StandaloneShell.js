@@ -127,7 +127,7 @@ export default function StandaloneShell() {
       </header>
 
       {/* Studio Content */}
-      <div className="flex-1">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'image'     && <ImageStudio     apiKey={apiKey} onAnimate={handleAnimate} />}
         {activeTab === 'video'     && <VideoStudio     apiKey={apiKey} initialImage={pendingAnimateUrl} onInitialImageConsumed={() => setPendingAnimateUrl(null)} />}
         {activeTab === 'lipsync'   && <LipSyncStudio   apiKey={apiKey} />}

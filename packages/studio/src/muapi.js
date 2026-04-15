@@ -191,6 +191,64 @@ export function uploadFile(apiKey, file, onProgress) {
     });
 }
 
+export async function generateStoryPlan(apiKey, { storyPrompt, sceneCount, style }) {
+    const systemInstruction = `You are a professional storyboard director. Respond ONLY with a valid JSON array. No markdown, no explanation, no code fences.`;
+    const userMessage = `Create a ${sceneCount}-scene storyboard for this story:\n"${storyPrompt}"\nVisual style: ${style}\n\nReturn a JSON array with exactly ${sceneCount} objects. Each object must have:\n- "scene_number": integer (1-based)\n- "description": string (40-80 words, vivid visual description of what is shown in the frame)\n- "shot_type": one of ["Extreme Wide Shot","Wide Shot","Medium Shot","Close-Up","Extreme Close-Up","Over-the-Shoulder","Bird's Eye View","Low Angle","Dutch Angle"]\n- "mood": one of ["tense","peaceful","dramatic","melancholic","joyful","mysterious","action","romantic","ominous"]\n- "camera_motion": one of ["static","slow pan","push in","pull back","tracking shot","handheld"]\n- "image_prompt": string (concise model-ready image generation prompt for this scene, 15-30 words, includes style)`;
+
+    const url = `${BASE_URL}/api/v1/gpt-5-mini`;
+    const payload = {
+        prompt: userMessage,
+        messages: [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: userMessage }
+        ]
+    };
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`LLM request failed: ${response.status} - ${errText.slice(0, 120)}`);
+    }
+    const data = await response.json();
+
+    // Extract text from various possible sync response shapes
+    let rawText =
+        data?.outputs?.[0] ??
+        data?.text ??
+        data?.content ??
+        data?.message?.content ??
+        data?.choices?.[0]?.message?.content ??
+        data?.result ??
+        null;
+
+    // If polling is required (async response with request_id)
+    if (!rawText && (data?.request_id || data?.id)) {
+        const pollResult = await pollForResult(data.request_id || data.id, apiKey, 30, 2000);
+        rawText =
+            pollResult?.outputs?.[0] ??
+            pollResult?.text ??
+            pollResult?.content ??
+            null;
+    }
+
+    if (!rawText) {
+        throw new Error('LLM returned no text output. Raw: ' + JSON.stringify(data).slice(0, 200));
+    }
+
+    // Strip markdown fences if present
+    const cleaned = rawText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    const start = cleaned.indexOf('[');
+    const end = cleaned.lastIndexOf(']');
+    if (start === -1 || end === -1) throw new Error('LLM response did not contain a JSON array.');
+    const parsed = JSON.parse(cleaned.slice(start, end + 1));
+    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('LLM returned an empty array.');
+    return parsed;
+}
+
 export async function getUserBalance(apiKey) {
     const response = await fetch(`${BASE_URL}/api/v1/account/balance`, {
         headers: {

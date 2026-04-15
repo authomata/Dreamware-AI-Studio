@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ImageStudio, VideoStudio, LipSyncStudio, CinemaStudio, CharacterStudio, getUserBalance } from 'studio';
+import { ImageStudio, VideoStudio, LipSyncStudio, CinemaStudio, CharacterStudio, StoryStudio, getUserBalance } from 'studio';
 import ApiKeyModal from './ApiKeyModal';
 
 // ── Tab definitions with inline SVG icons ────────────────────────────────────
@@ -59,6 +59,19 @@ const TABS = [
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="8" r="4" />
         <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+      </svg>
+    ),
+  },
+  {
+    id: 'story',
+    label: 'Story Studio',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="6" width="20" height="14" rx="2" />
+        <line x1="2" y1="11" x2="22" y2="11" />
+        <line x1="7" y1="6" x2="7" y2="11" />
+        <line x1="12" y1="6" x2="12" y2="11" />
+        <line x1="17" y1="6" x2="17" y2="11" />
       </svg>
     ),
   },
@@ -194,6 +207,7 @@ export default function StandaloneShell() {
           {activeTab === 'lipsync'   && <LipSyncStudio   apiKey={apiKey} />}
           {activeTab === 'cinema'    && <CinemaStudio    apiKey={apiKey} />}
           {activeTab === 'character' && <CharacterStudio apiKey={apiKey} />}
+          {activeTab === 'story'     && <StoryStudio     apiKey={apiKey} onAnimate={handleAnimate} />}
         </div>
       </div>
 

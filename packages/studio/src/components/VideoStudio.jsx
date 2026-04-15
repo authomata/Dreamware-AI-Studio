@@ -927,7 +927,7 @@ export default function VideoStudio({
               return (
                 <div
                   key={entry.id || idx}
-                  className="relative group rounded-2xl overflow-hidden border border-white/10 bg-[#0a0a0a] shadow-xl hover:border-primary/50 transition-all duration-300 flex flex-col"
+                  className="relative group rounded-xl overflow-hidden border border-white/[0.08] bg-[#111111] shadow-xl hover:border-primary/40 hover:shadow-glow-soft transition-all duration-300 flex flex-col"
                 >
                   <video
                     src={entry.url}
@@ -1033,7 +1033,7 @@ export default function VideoStudio({
           <div className="flex flex-col items-center justify-center h-full animate-fade-in-up transition-all duration-700 min-h-[50vh]">
             <div className="mb-12 relative group">
               <div className="absolute inset-0 bg-primary/10 blur-[120px] rounded-full opacity-30 group-hover:opacity-60 transition-opacity duration-1000" />
-              <div className="relative w-24 h-24 md:w-32 md:h-32 bg-white/[0.02] rounded-[2rem] flex items-center justify-center border border-white/[0.05] overflow-hidden backdrop-blur-sm">
+              <div className="relative w-24 h-24 md:w-32 md:h-32 bg-white/[0.02] rounded-2xl flex items-center justify-center border border-white/[0.05] overflow-hidden backdrop-blur-sm">
                 <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center border border-primary/10 relative z-10 transition-transform duration-500 group-hover:scale-110">
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-primary opacity-80">
                     <polygon points="23 7 16 12 23 17 23 7" />
@@ -1056,7 +1056,7 @@ export default function VideoStudio({
 
       {/* ── BOTTOM PROMPT BAR ── */}
       <div className="absolute bottom-4 w-full max-w-[95%] lg:max-w-4xl z-40 animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
-        <div className="w-full bg-[#0a0a0a]/80 backdrop-blur-3xl rounded-md border border-white/10 p-4 flex flex-col gap-2 shadow-2xl">
+        <div className="w-full bg-[#111111]/90 backdrop-blur-3xl rounded-xl border border-white/[0.08] p-4 flex flex-col gap-2 shadow-2xl">
           <div className="flex items-center gap-2 px-1">
             {/* Image upload button */}
             <div className="relative">
@@ -1204,7 +1204,7 @@ export default function VideoStudio({
                 <button
                   type="button"
                   onClick={toggleDropdown("model")}
-                  className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] hover:bg-white/[0.06] rounded-md transition-all border border-white/[0.03] group whitespace-nowrap"
+                  className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] hover:bg-white/[0.06] rounded-lg transition-all duration-200 border border-white/[0.04] active:scale-95 group whitespace-nowrap"
                 >
                   <div className="w-4 h-4 bg-[#d9ff00] rounded flex items-center justify-center shadow-lg shadow-[#d9ff00]/10">
                     <span className="text-[9px] font-bold text-black uppercase">
@@ -1248,7 +1248,7 @@ export default function VideoStudio({
                   <button
                     type="button"
                     onClick={toggleDropdown("ar")}
-                    className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] hover:bg-white/[0.06] rounded-md transition-all border border-white/[0.03] group whitespace-nowrap"
+                    className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] hover:bg-white/[0.06] rounded-lg transition-all duration-200 border border-white/[0.04] active:scale-95 group whitespace-nowrap"
                   >
                     <svg
                       width="14"
@@ -1310,7 +1310,7 @@ export default function VideoStudio({
                   <button
                     type="button"
                     onClick={toggleDropdown("duration")}
-                    className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] hover:bg-white/[0.06] rounded-md transition-all border border-white/[0.03] group whitespace-nowrap"
+                    className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] hover:bg-white/[0.06] rounded-lg transition-all duration-200 border border-white/[0.04] active:scale-95 group whitespace-nowrap"
                   >
                     <svg
                       width="14"
@@ -1332,7 +1332,7 @@ export default function VideoStudio({
                     <div
                       ref={dropdownRef}
                       onClick={(e) => e.stopPropagation()}
-                      className="absolute bottom-[calc(100%+12px)] left-0 z-50 bg-[#0a0a0a] rounded-md p-3 shadow-2xl border border-white/10 min-w-[140px]"
+                      className="absolute bottom-[calc(100%+12px)] left-0 z-50 bg-[#111111] rounded-lg p-3 shadow-2xl border border-white/10 min-w-[140px]"
                     >
                       <div className="text-xs font-bold text-white/20 border-b border-white/[0.03] mb-2">
                         Duration
@@ -1366,7 +1366,7 @@ export default function VideoStudio({
                   <button
                     type="button"
                     onClick={toggleDropdown("resolution")}
-                    className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] hover:bg-white/[0.06] rounded-md transition-all border border-white/[0.03] group whitespace-nowrap"
+                    className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] hover:bg-white/[0.06] rounded-lg transition-all duration-200 border border-white/[0.04] active:scale-95 group whitespace-nowrap"
                   >
                     <svg
                       width="14"
@@ -1387,7 +1387,7 @@ export default function VideoStudio({
                     <div
                       ref={dropdownRef}
                       onClick={(e) => e.stopPropagation()}
-                      className="absolute bottom-[calc(100%+12px)] left-0 z-50 bg-[#0a0a0a] rounded-md p-3 shadow-2xl border border-white/[0.05] min-w-[140px]"
+                      className="absolute bottom-[calc(100%+12px)] left-0 z-50 bg-[#111111] rounded-lg p-3 shadow-2xl border border-white/[0.05] min-w-[140px]"
                     >
                       <div className="text-xs font-bold text-white/20 border-b border-white/[0.03] mb-2">
                         Resolution
@@ -1421,7 +1421,7 @@ export default function VideoStudio({
               type="button"
               onClick={handleGenerate}
               disabled={generating}
-              className="bg-[#d9ff00] text-black px-4 py-2 rounded-md font-medium text-sm hover:bg-[#e5ff33] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 w-full sm:w-auto shadow-lg shadow-[#d9ff00]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-[#d9ff00] text-black px-4 py-2 rounded-lg font-semibold text-sm hover:bg-[#e5ff33] hover:scale-[1.02] active:scale-[0.97] transition-all flex items-center justify-center gap-2 w-full sm:w-auto shadow-lg shadow-[#d9ff00]/10 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {generating ? (
                 <>

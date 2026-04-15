@@ -693,7 +693,7 @@ export default function CinemaStudio({
             {history.map((entry, idx) => (
               <div
                 key={entry.timestamp ?? idx}
-                className="relative group rounded-2xl overflow-hidden border border-white/10 bg-[#0a0a0a] shadow-xl hover:border-[#d9ff00]/50 transition-all duration-300 flex flex-col cursor-pointer"
+                className="relative group rounded-xl overflow-hidden border border-white/[0.08] bg-[#111111] shadow-xl hover:border-primary/40 hover:shadow-glow-soft transition-all duration-300 flex flex-col cursor-pointer"
                 onClick={() => loadHistoryItem(entry, idx)}
               >
                 <img
@@ -785,7 +785,7 @@ export default function CinemaStudio({
           <div className="flex flex-col items-center justify-center h-full text-center px-4 animate-fade-in-up transition-all duration-700 min-h-[50vh]">
             <div className="mb-12 relative group">
               <div className="absolute inset-0 bg-primary/10 blur-[120px] rounded-full opacity-30 group-hover:opacity-60 transition-opacity duration-1000" />
-              <div className="relative w-24 h-24 md:w-32 md:h-32 bg-white/[0.02] rounded-[2rem] flex items-center justify-center border border-white/[0.05] overflow-hidden backdrop-blur-sm">
+              <div className="relative w-24 h-24 md:w-32 md:h-32 bg-white/[0.02] rounded-2xl flex items-center justify-center border border-white/[0.05] overflow-hidden backdrop-blur-sm">
                 <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center border border-primary/10 relative z-10 transition-transform duration-500 group-hover:scale-110">
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-primary opacity-80">
                     <path d="M23 7l-7 5 7 5V7z" />
@@ -808,7 +808,7 @@ export default function CinemaStudio({
 
       {/* ── BOTTOM PROMPT BAR ── */}
       <div className="absolute bottom-4 left-4 right-4 md:left-0 md:right-0 md:mx-auto md:max-w-[95%] lg:max-w-4xl z-30 transition-all duration-700 animate-fade-in-up">
-        <div className="bg-[#0a0a0a]/80 backdrop-blur-3xl border border-white/10 rounded-md p-4 flex justify-between shadow-2xl items-end relative gap-2">
+        <div className="bg-[#111111]/90 backdrop-blur-3xl border border-white/[0.08] rounded-xl p-4 flex justify-between shadow-2xl items-end relative gap-2">
           {/* Left Column */}
           <div className="flex-1 flex flex-col gap-3 min-h-[80px] justify-between py-1">
             {/* Input Row */}
@@ -892,7 +892,7 @@ export default function CinemaStudio({
 
                 {/* Generate Button */}
                 <button
-                  className="h-[50px] px-8 bg-[#d9ff00] text-black rounded-md font-medium text-sm hover:bg-[#e5ff33] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#d9ff00]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-[50px] px-8 bg-[#d9ff00] text-black rounded-lg font-semibold text-sm hover:bg-[#e5ff33] hover:scale-[1.02] active:scale-[0.97] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#d9ff00]/10 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={isGenerating || !settings.prompt.trim()}
                   onClick={handleGenerate}
                 >

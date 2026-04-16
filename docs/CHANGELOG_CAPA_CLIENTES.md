@@ -5,6 +5,56 @@ su checklist de verificación manual está aprobado por Andrés.
 
 ## [Unreleased]
 
+## Fase 2 — Archivos y folders con Supabase Storage (2026-04-16) — ⏳ Pendiente aplicación de migraciones y verificación manual
+
+### Creado
+
+**Migraciones (pendientes de aplicar por Andrés):**
+- `supabase/migrations/20260419000001_files_folders.sql` — tablas folders + files, columna storage_used_bytes en workspaces, trigger storage tracking, trigger default folders, backfill de folders para workspaces existentes, RLS para ambas tablas.
+- `supabase/migrations/20260419000002_storage_workspace_files.sql` — 4 policies en storage.objects para bucket workspace-files (SELECT viewer+, INSERT/UPDATE/DELETE editor+). DO block valida el pattern de path `{workspace_id}/{file_id}-{name}`.
+
+**Endpoint:**
+- `app/api/upload/sign/route.js` — POST con `{workspace_id, folder_id, filename, mime_type, size}`. Validaciones en orden: auth → membership editor+ → MIME whitelist/blocklist → size ≤ MAX_BYTES → folder_id scope. Genera signed upload URL via admin client.
+
+**Server Actions:**
+- `app/w/[slug]/files/actions.js` — createFolder, renameFolder, deleteFolder, registerUploadedFile (con verificación Storage.list), renameFile, moveFile, deleteFile (borra Storage + DB), toggleReviewAsset, getSignedDownloadUrl.
+
+**Componentes:**
+- `components/workspace/FileIcon.js` — ícono lucide-react por MIME + helpers `mimeLabel()` y `formatBytes()`.
+- `components/workspace/FilePreview.js` — preview inline: imagen, video, audio, PDF iframe, fallback descarga.
+- `components/workspace/FileUploader.js` — multi-file con progress bar por archivo via XHR. Flujo: sign → PUT → registerUploadedFile.
+- `components/workspace/FileBrowser.js` — grid/list, breadcrumbs, drag-drop zone, context menus (renombrar, eliminar, toggle review), new folder inline.
+
+**Rutas:**
+- `app/w/[slug]/files/page.js` — lista folders + files con breadcrumbs dinámicos, pasa a FileBrowser.
+- `app/w/[slug]/files/[fileId]/page.js` — detalle de archivo: preview + metadata sidebar + descarga. Signed URL generado server-side (1h). Placeholder de comentarios para Fase 3.
+
+**Docs:**
+- `.env.example` — documentación de variables de entorno incluyendo `NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB`.
+
+### Modificado
+- `components/workspace/WorkspaceSidebar.js` — `LIVE_PHASE = 2` activa el link "Archivos".
+- `.env.local` — agregado `NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB=50`.
+
+### ⚠️ Acciones pendientes antes de verificar
+
+1. **Aplicar migraciones en Supabase Dashboard (SQL Editor):**
+   - `20260419000001_files_folders.sql` primero
+   - `20260419000002_storage_workspace_files.sql` segundo
+   - Revisar ambas ANTES de aplicar (especialmente storage policies)
+
+2. **Agregar variable en Vercel:**
+   - `NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB = 50`
+   - Settings → Environment Variables → Production
+
+3. **Push a producción** (código ya commiteado, falta push)
+
+### Notas de diseño / deuda conocida
+- `deleteFolder()`: archivos dentro quedan con folder_id=null (no se borran de Storage). Deuda anotada, requiere job de limpieza futuro.
+- `deleteFile()`: si falla la eliminación en Storage, el registro DB se elimina igual (para evitar referencias rotas). El objeto Storage queda huérfano — recuperable manualmente.
+- Límite 50 MB: determinado por plan Free de Supabase (bucket limit). Controlado por `NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB` — ajustar al hacer upgrade a Pro.
+- Ghost files: si `registerUploadedFile` falla después del PUT a Storage, el objeto queda huérfano. Deuda conocida — mitigada por la validación Storage.list en registerUploadedFile.
+
 ## Fase 1 — Workspaces core + navegación base (2026-04-15) — ✅ Verificada end-to-end en producción (2026-04-16)
 
 Verificación manual aprobada por Andrés:

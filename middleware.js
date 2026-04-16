@@ -29,7 +29,7 @@ export async function middleware(request) {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Redirect unauthenticated users to /login
-  if (!user && request.nextUrl.pathname.startsWith('/studio')) {
+  if (!user && (request.nextUrl.pathname.startsWith('/studio') || request.nextUrl.pathname.startsWith('/admin'))) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
@@ -46,5 +46,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/studio/:path*', '/login'],
+  matcher: ['/studio/:path*', '/admin/:path*', '/admin', '/login'],
 };

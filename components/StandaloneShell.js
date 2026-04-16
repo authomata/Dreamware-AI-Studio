@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useSupabaseHistory } from '@/hooks/useSupabaseHistory';
 import { useSupabaseCharacters } from '@/hooks/useSupabaseCharacters';
+import WorkspaceSwitcher from '@/components/workspace/WorkspaceSwitcher';
 import { ImageStudio, VideoStudio, LipSyncStudio, CinemaStudio, CharacterStudio, StoryStudio, getUserBalance } from 'studio';
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ export default function StandaloneShell() {
   const [user, setUser] = useState(null);
   const [apiKey, setApiKey] = useState(null);
   const [balance, setBalance] = useState(null);
+  const [workspaces, setWorkspaces] = useState([]);
   const [activeTab, setActiveTab] = useState('image');
   const [showSettings, setShowSettings] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
@@ -140,6 +142,23 @@ export default function StandaloneShell() {
         fetchBalance(profile.muapi_key);
       } else {
         setShowKeyModal(true);
+      }
+
+      // Load workspaces for the switcher.
+      // Isolated in try/catch so a missing migration or RLS issue never breaks the studio.
+      const { data: memberships, error: membershipsError } = await supabase
+        .from('workspace_members')
+        .select('role, workspace:workspaces(id, name, slug, logo_url, brand_color, archived_at)')
+        .eq('user_id', user.id);
+
+      if (membershipsError) {
+        console.warn('[StandaloneShell] Could not load workspaces:', membershipsError.message);
+        setWorkspaces([]);
+      } else {
+        const activeWorkspaces = (memberships || [])
+          .filter(m => m.workspace && !m.workspace.archived_at)
+          .map(m => ({ ...m.workspace, member_role: m.role }));
+        setWorkspaces(activeWorkspaces);
       }
     };
 
@@ -272,8 +291,13 @@ export default function StandaloneShell() {
           </div>
         </div>
 
-        {/* Right: balance + avatar */}
+        {/* Right: workspace switcher + balance + avatar */}
         <div className="flex items-center gap-3">
+          {/* Workspace switcher — only shown when the user belongs to ≥1 workspace */}
+          {workspaces.length > 0 && (
+            <WorkspaceSwitcher workspaces={workspaces} currentSlug={null} />
+          )}
+
           {/* Balance */}
           {apiKey && (
             <div className="flex items-center gap-2 bg-white/[0.04] px-3 py-1.5 rounded-lg border border-white/[0.06]">

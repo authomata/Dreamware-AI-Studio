@@ -5,6 +5,55 @@ su checklist de verificación manual está aprobado por Andrés.
 
 ## [Unreleased]
 
+## Fase 1 — Workspaces core + navegación base (2026-04-15) — ⏳ Pendiente verificación manual
+
+### Creado
+- `supabase/migrations/20260417000001_workspaces_core.sql` — Tablas workspaces, workspace_members, workspace_invitations. Función is_workspace_member() SECURITY DEFINER. RLS policies para las 3 tablas. Trigger auto-add owner. DO block con 25 assertions del CASE hierarchy.
+- `lib/workspace/getUserWorkspaces.js` — Lista workspaces del usuario autenticado (excluye archivados por default).
+- `lib/workspace/getWorkspaceBySlug.js` — Workspace + membership del caller. Retorna null si no existe o no es miembro (RLS maneja).
+- `lib/workspace/assertWorkspaceRole.js` — Guard para Server Actions. Platform admin es tratado como owner. Throws Unauthorized / Forbidden.
+- `lib/workspace/generateUniqueSlug.js` — slugify() + generateUniqueSlug() con suffix numérico si hay colisión.
+- `app/w/[slug]/layout.js` — Guard de membresía. Redirect a / si no es miembro. Renderiza WorkspaceSidebar.
+- `app/w/[slug]/page.js` — Dashboard con header de workspace, avatares, cards de fases futuras, acciones rápidas para admin+.
+- `app/w/[slug]/members/page.js` — Lista de miembros + invitaciones pendientes. MemberList + InviteMemberDialog.
+- `app/w/[slug]/settings/page.js` — Edición de metadata del workspace (admin+). WorkspaceSettingsForm.
+- `app/w/[slug]/actions.js` — Server Actions: updateWorkspace, archiveWorkspace, inviteMember, updateMemberRole, removeMember, revokeInvitation.
+- `app/invitations/[token]/page.js` — Flow de aceptación de invitación. Estados: inválida, expirada, ya aceptada, acepta.
+- `app/invitations/[token]/InvitationAcceptClient.js` — Client component con lógica de aceptación, mismatch de email.
+- `app/invitations/[token]/actions.js` — acceptInvitation() via admin client (token como autorización).
+- `app/admin/clients/page.js` — Lista de todos los workspaces (activos + archivados) con archive/restore actions.
+- `app/admin/clients/new/page.js` — Server Component guard + layout.
+- `app/admin/clients/new/NewClientForm.js` — Form para crear workspace + contacto principal. Genera slug automático.
+- `app/admin/clients/actions.js` — createClientAndOwner, archiveClient, restoreClient.
+- `components/workspace/WorkspaceSidebar.js` — Rail lateral con Dashboard, Archivos, Docs, Chat, Miembros, Config. Links deshabilitados para fases futuras.
+- `components/workspace/WorkspaceSwitcher.js` — Dropdown para cambiar entre workspaces y "Sin workspace".
+- `components/workspace/MemberAvatar.js` — Avatar con dot de rol, tooltip, fallback a iniciales.
+- `components/workspace/MemberList.js` — Lista de miembros con dropdown de roles e invitaciones pendientes.
+- `components/workspace/InviteMemberDialog.js` — Modal de invitación por email + rol.
+- `components/workspace/RoleBadge.js` — Badge de color por rol (owner=amarillo, admin=lime, editor=azul, commenter=morado, viewer=gris).
+- `components/workspace/WorkspaceSettingsForm.js` — Form de configuración con slug auto-update, color de marca, plan.
+- `docs/WORKSPACE_ROLES.md` — Matriz de permisos, notas de implementación, jerarquía de roles.
+
+### Modificado
+- `app/admin/AdminClient.js` — Agregado link "Clientes →" en header del admin para navegar a /admin/clients.
+
+### Migraciones para aplicar en producción
+1. `supabase/migrations/20260417000001_workspaces_core.sql`
+
+### Dependencias agregadas
+Ninguna nueva (lucide-react y date-fns ya instalados en Fase 0).
+
+### StandaloneShell.js — integración completada
+- Import de `WorkspaceSwitcher`
+- Estado `workspaces: []`
+- Query `workspace_members` JOIN `workspaces` en `initAuth`, con try/catch aislado: si falla (migración no corrida, RLS error) → `console.warn` + `setWorkspaces([])`, studio sigue funcionando
+- `WorkspaceSwitcher` en header: posición `[logo] ... [switcher] [balance] [avatar]`, solo visible cuando `workspaces.length > 0`
+- **Nota**: el switcher no aparecerá hasta que la migración `20260417000001_workspaces_core.sql` esté aplicada en producción
+
+### TODO Fase 6 (marcado en código)
+- `inviteMember()` y `createClientAndOwner()` tienen comentarios `// TODO (Phase 6): send email via Resend`
+- `NewClientForm.js` tiene nota visible al usuario sobre el email pendiente
+
 ## Fase 0 — Housekeeping (2026-04-16) — ⏳ Pendiente verificación manual
 
 ### Creado

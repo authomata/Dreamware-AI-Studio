@@ -64,7 +64,10 @@ export default function AdminClient({ users, settings }) {
             <p className="text-white/30 text-[10px]">{users.length} usuarios · {teamUsers.length} team</p>
           </div>
         </div>
-        <a href="/studio" className="text-white/30 hover:text-white text-xs transition-colors">← Volver al Studio</a>
+        <div className="flex items-center gap-4">
+          <a href="/admin/clients" className="text-white/50 hover:text-white text-xs transition-colors">Clientes →</a>
+          <a href="/studio" className="text-white/30 hover:text-white text-xs transition-colors">← Volver al Studio</a>
+        </div>
       </div>
 
       {/* Tabs */}

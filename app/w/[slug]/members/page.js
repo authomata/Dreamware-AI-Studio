@@ -16,11 +16,15 @@ export default async function MembersPage({ params }) {
   const supabase      = await createClient();
   const adminClient   = createAdminClient();
 
-  // Fetch all members with their profile data
-  const { data: members } = await supabase
+  // Fetch all members with their profile data.
+  // user_id is selected explicitly so we can look up emails even when
+  // profile join returns null (FK path workspace_members.user_id → profiles
+  // is indirect through auth.users; PostgREST may fail to resolve it without
+  // the coworker-profiles policy applied, making data=null → 0 members).
+  const { data: members, error: membersError } = await supabase
     .from('workspace_members')
     .select(`
-      id, role, joined_at, last_seen_at, invited_by,
+      id, role, joined_at, last_seen_at, invited_by, user_id,
       profile:profiles (id, full_name, avatar_url)
     `)
     .eq('workspace_id', workspace.id)
@@ -30,10 +34,22 @@ export default async function MembersPage({ params }) {
   const { data: { users: authUsers } } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
   const emailMap = Object.fromEntries((authUsers || []).map(u => [u.id, u.email]));
 
+  // Use user_id (always present on the row) — not profile?.id — so email lookup
+  // is resilient to the profile join returning null.
   const enrichedMembers = (members || []).map(m => ({
     ...m,
-    email: emailMap[m.profile?.id] || null,
+    email: emailMap[m.user_id] || null,
   }));
+
+  console.log('[MembersPage] enriched members:', enrichedMembers.map(m => ({
+    id:          m.id,
+    role:        m.role,
+    user_id:     m.user_id,
+    email:       m.email,
+    hasProfile:  !!m.profile,
+    hasFullName: !!m.profile?.full_name,
+  })));
+  if (membersError) console.error('[MembersPage] members query error:', membersError);
 
   // Pending invitations (visible to admin+)
   const canManage = ['owner', 'admin'].includes(workspace.member_role);

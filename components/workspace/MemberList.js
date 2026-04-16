@@ -83,8 +83,11 @@ export default function MemberList({
       {/* Active members */}
       <div className="space-y-1">
         {members.map((member) => {
-          const name    = member.profile?.full_name || member.email || 'Usuario';
-          const isRow   = loading === member.profile?.id;
+          // user_id is the stable identifier — profile?.id is the same value
+          // but may be null if the profile join failed (RLS or FK resolution).
+          const userId = member.user_id || member.profile?.id;
+          const name   = member.profile?.full_name || member.email || 'Usuario sin nombre';
+          const isRow  = loading === userId;
           const canEdit = canManage && member.role !== 'owner';
           const canEditOwner = isOwner && member.role === 'owner';
 
@@ -110,7 +113,7 @@ export default function MemberList({
               {canManage && (canEdit || canEditOwner) ? (
                 <select
                   value={member.role}
-                  onChange={(e) => handleRoleChange(member.profile?.id, e.target.value)}
+                  onChange={(e) => handleRoleChange(userId, e.target.value)}
                   disabled={isRow}
                   className="
                     text-xs bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1
@@ -129,7 +132,7 @@ export default function MemberList({
               {/* Remove button */}
               {canManage && canEdit && (
                 <button
-                  onClick={() => handleRemove(member.profile?.id)}
+                  onClick={() => handleRemove(userId)}
                   disabled={isRow}
                   className="p-1 text-zinc-600 hover:text-red-400 transition-colors"
                   title="Eliminar miembro"

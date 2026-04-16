@@ -151,6 +151,9 @@ export default function DocumentEditor({
 
       Mention.configure({
         HTMLAttributes: { class: 'doc-mention' },
+        renderLabel({ node }) {
+          return `@${node.attrs.label ?? node.attrs.id}`;
+        },
         suggestion: {
           items: ({ query }) => {
             if (!query) return members.slice(0, 8);
@@ -158,6 +161,16 @@ export default function DocumentEditor({
             return members
               .filter(m => m.label.toLowerCase().includes(q))
               .slice(0, 8);
+          },
+          command: ({ editor, range, props }) => {
+            editor
+              .chain()
+              .focus()
+              .insertContentAt(range, [
+                { type: 'mention', attrs: { id: props.id, label: props.label } },
+                { type: 'text', text: ' ' },
+              ])
+              .run();
           },
           render: () => {
             let component;

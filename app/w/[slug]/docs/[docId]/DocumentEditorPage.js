@@ -25,6 +25,7 @@ export default function DocumentEditorPage({
   initialComments,
   members,
   currentUserId,
+  currentUserEmail,
   canEdit,
   canComment,
   isAdmin,
@@ -38,12 +39,22 @@ export default function DocumentEditorPage({
   const editorRef    = useRef(null);   // holds the Tiptap editor instance
   const profileCache = useRef({});     // { userId: { full_name, avatar_url, email } }
 
-  // Pre-populate profile cache from initial comments
+  // Pre-populate profile cache from initial comments + current user
   useEffect(() => {
     initialComments.forEach(c => {
       if (c.author)   profileCache.current[c.author_id]   = c.author;
       if (c.resolver) profileCache.current[c.resolved_by] = c.resolver;
     });
+    // Ensure current user is always in cache so optimistic comments show their name
+    if (currentUserId) {
+      profileCache.current[currentUserId] = {
+        ...profileCache.current[currentUserId],
+        id:         currentUserId,
+        email:      currentUserEmail || profileCache.current[currentUserId]?.email || null,
+        full_name:  profileCache.current[currentUserId]?.full_name || null,
+        avatar_url: profileCache.current[currentUserId]?.avatar_url || null,
+      };
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Realtime: subscribe to document_comments for this document ────────────
@@ -63,15 +74,21 @@ export default function DocumentEditorPage({
         (payload) => {
           if (payload.eventType === 'INSERT') {
             const row = payload.new;
-            // Deduplicate: skip if already in state (optimistic insert from self)
+            // UPSERT: if comment already in state (optimistic insert), replace it
+            // so the server-confirmed row wins; otherwise append.
             setComments(prev => {
-              if (prev.some(c => c.id === row.id)) return prev;
               const cached = profileCache.current[row.author_id];
               const enriched = {
                 ...row,
                 author:   cached || { id: row.author_id, full_name: null, avatar_url: null, email: null },
                 resolver: null,
               };
+              const idx = prev.findIndex(c => c.id === row.id);
+              if (idx !== -1) {
+                const next = [...prev];
+                next[idx] = { ...prev[idx], ...enriched };
+                return next;
+              }
               return [...prev, enriched];
             });
           }
@@ -147,19 +164,22 @@ export default function DocumentEditorPage({
       await updateDocument(doc.id, { content: newContent }).catch(console.error);
     }
 
-    // Optimistic add to state (Realtime INSERT will deduplicate)
+    // Optimistic add to state (Realtime INSERT will UPSERT, so guard here too)
     const currentUserProfile = profileCache.current[currentUserId] || {
-      id: currentUserId, full_name: null, avatar_url: null, email: null,
+      id: currentUserId, full_name: null, avatar_url: null, email: currentUserEmail || null,
     };
 
-    setComments(prev => [
-      ...prev,
-      {
-        ...comment,
-        author:   { ...currentUserProfile },
-        resolver: null,
-      },
-    ]);
+    setComments(prev => {
+      if (prev.some(c => c.id === comment.id)) return prev; // Realtime already added it
+      return [
+        ...prev,
+        {
+          ...comment,
+          author:   { ...currentUserProfile },
+          resolver: null,
+        },
+      ];
+    });
 
     setPendingComment(null);
     setReplyToId(null);

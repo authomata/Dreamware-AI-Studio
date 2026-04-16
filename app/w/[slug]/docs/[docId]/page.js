@@ -15,6 +15,9 @@ export default async function DocDetailPage({ params }) {
   const supabase = await createClient();
   const admin    = createAdminClient();
 
+  // ── Current user (fetched early so we can include their id in profile batch) ─
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+
   // ── Fetch document ────────────────────────────────────────────────────────
   const { data: doc } = await supabase
     .from('documents')
@@ -34,10 +37,16 @@ export default async function DocDetailPage({ params }) {
 
   const comments = rawComments || [];
 
-  // ── Batch fetch profiles for authors + resolvers ──────────────────────────
+  // ── Batch fetch profiles + emails ─────────────────────────────────────────
+  // Include currentUser?.id so the optimistic-add author profile is available
+  // even when the current user has no prior comments on this doc.
   const authorIds   = comments.map(c => c.author_id);
   const resolverIds = comments.filter(c => c.resolved_by).map(c => c.resolved_by);
-  const allIds      = [...new Set([...authorIds, ...resolverIds, doc.created_by, doc.updated_by])];
+  const allIds      = [...new Set([
+    ...authorIds, ...resolverIds,
+    doc.created_by, doc.updated_by,
+    currentUser?.id,
+  ].filter(Boolean))];
 
   let profileMap = {};
   let emailMap   = {};
@@ -91,12 +100,13 @@ export default async function DocDetailPage({ params }) {
     label: memberProfiles[m.user_id]?.full_name || emailMap[m.user_id] || 'Usuario',
   }));
 
-  // ── Current user ──────────────────────────────────────────────────────────
-  const { data: { user: currentUser } } = await supabase.auth.getUser();
-
   const canEdit    = ['owner', 'admin', 'editor'].includes(workspace.member_role);
   const canComment = ['owner', 'admin', 'editor', 'commenter'].includes(workspace.member_role);
   const isAdmin    = ['owner', 'admin'].includes(workspace.member_role);
+
+  // Email of the current user — passed to client so the optimistic comment
+  // author shows their email even before the Realtime event enriches it.
+  const currentUserEmail = emailMap[currentUser?.id] || null;
 
   return (
     <DocumentEditorPage
@@ -105,6 +115,7 @@ export default async function DocDetailPage({ params }) {
       initialComments={initialComments}
       members={members}
       currentUserId={currentUser?.id}
+      currentUserEmail={currentUserEmail}
       canEdit={canEdit}
       canComment={canComment}
       isAdmin={isAdmin}

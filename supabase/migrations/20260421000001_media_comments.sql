@@ -77,10 +77,11 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_created
 -- ---------------------------------------------------------------------------
 ALTER TABLE media_comments ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "members_read_media_comments"     ON media_comments;
+DROP POLICY IF EXISTS "members_read_media_comments"      ON media_comments;
 DROP POLICY IF EXISTS "commenters_insert_media_comments" ON media_comments;
-DROP POLICY IF EXISTS "authors_update_media_comments"   ON media_comments;
-DROP POLICY IF EXISTS "authors_delete_media_comments"   ON media_comments;
+DROP POLICY IF EXISTS "authors_update_media_comments"    ON media_comments; -- old name, kept for idempotency
+DROP POLICY IF EXISTS "editors_update_media_comments"    ON media_comments;
+DROP POLICY IF EXISTS "authors_delete_media_comments"    ON media_comments;
 
 CREATE POLICY "members_read_media_comments" ON media_comments
   FOR SELECT USING (is_workspace_member(workspace_id, 'viewer'));
@@ -91,12 +92,21 @@ CREATE POLICY "commenters_insert_media_comments" ON media_comments
     AND author_id = auth.uid()
   );
 
--- UPDATE: author can edit body; admin+ can resolve/unresolve (changes resolved_at/resolved_by).
--- Server action guards enforce fine-grained rules above the RLS floor.
-CREATE POLICY "authors_update_media_comments" ON media_comments
+-- UPDATE: Frame.io pattern — any editor+ can resolve/unresolve any comment.
+-- Body edits remain author-only, but that constraint is enforced by the
+-- editComment server action (author_id === user.id check), NOT by this policy.
+--
+-- Tradeoff acknowledged: RLS cannot distinguish "edit body" vs "update
+-- resolved_at" because both are UPDATE on the same row. We accept this because:
+--   1. Server actions are the only write path from the app client.
+--   2. A rogue client hitting Supabase directly still needs a valid JWT;
+--      any such access is logged in the Postgres audit trail.
+--   3. The resolveComment/unresolveComment server actions now use the SSR
+--      client directly (no service_role) — fewer privilege escalation points.
+CREATE POLICY "editors_update_media_comments" ON media_comments
   FOR UPDATE USING (
     author_id = auth.uid()
-    OR is_workspace_member(workspace_id, 'admin')
+    OR is_workspace_member(workspace_id, 'editor')
   );
 
 CREATE POLICY "authors_delete_media_comments" ON media_comments
@@ -219,6 +229,87 @@ CREATE TRIGGER on_media_comment_insert
   EXECUTE FUNCTION notify_on_media_comment();
 
 -- ---------------------------------------------------------------------------
+-- TRIGGER: notify_on_media_comment_resolved
+--
+-- Fires AFTER UPDATE when resolved_at transitions NULL → non-NULL (Frame.io pattern).
+-- Notifies the comment's author so they can audit the resolution and reopen
+-- if they disagree. Does NOT notify if:
+--   - The author resolved their own comment (NEW.resolved_by = NEW.author_id)
+--   - The author is no longer a workspace member
+--
+-- Uses direct JOIN on workspace_members — NOT is_workspace_member() — because
+-- auth.uid() inside SECURITY DEFINER resolves to the function owner (postgres),
+-- not the target recipient. See notify_on_media_comment for the same pattern.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION notify_on_media_comment_resolved()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_file_name      text;
+  v_workspace_slug text;
+  v_resolver_name  text;
+  v_link           text;
+  v_is_member      boolean;
+BEGIN
+  -- Only fire on NULL → non-NULL transition of resolved_at
+  IF OLD.resolved_at IS NOT NULL OR NEW.resolved_at IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Skip if author resolved their own comment
+  IF NEW.resolved_by = NEW.author_id THEN
+    RETURN NEW;
+  END IF;
+
+  -- Skip if author is no longer a workspace member
+  SELECT EXISTS (
+    SELECT 1 FROM workspace_members
+     WHERE workspace_id = NEW.workspace_id
+       AND user_id      = NEW.author_id
+  ) INTO v_is_member;
+
+  IF NOT v_is_member THEN
+    RETURN NEW;
+  END IF;
+
+  -- Gather context for the notification
+  SELECT f.name, w.slug
+    INTO v_file_name, v_workspace_slug
+    FROM files f
+    JOIN workspaces w ON w.id = f.workspace_id
+   WHERE f.id = NEW.file_id;
+
+  SELECT full_name
+    INTO v_resolver_name
+    FROM profiles
+   WHERE id = NEW.resolved_by;
+
+  v_link := '/w/' || v_workspace_slug || '/files/' || NEW.file_id;
+
+  INSERT INTO notifications (user_id, workspace_id, type, title, body, link)
+  VALUES (
+    NEW.author_id,
+    NEW.workspace_id,
+    'comment',
+    COALESCE(v_resolver_name, 'Alguien') || ' resolvió tu comentario',
+    'En "' || v_file_name || '"',
+    v_link
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_media_comment_resolved ON media_comments;
+CREATE TRIGGER on_media_comment_resolved
+  AFTER UPDATE ON media_comments
+  FOR EACH ROW
+  EXECUTE FUNCTION notify_on_media_comment_resolved();
+
+-- ---------------------------------------------------------------------------
 -- REALTIME
 -- Add both tables to the supabase_realtime publication so clients can
 -- subscribe to postgres_changes events.
@@ -284,13 +375,31 @@ BEGIN
     RAISE EXCEPTION 'RLS not enabled on both tables (found % with RLS)', v_count;
   END IF;
 
-  -- Trigger exists
+  -- INSERT trigger exists
   SELECT COUNT(*) INTO v_count
   FROM information_schema.triggers
   WHERE trigger_name = 'on_media_comment_insert'
     AND event_object_table = 'media_comments';
   IF v_count = 0 THEN
     RAISE EXCEPTION 'Trigger on_media_comment_insert not found on media_comments';
+  END IF;
+
+  -- UPDATE trigger (resolve notification) exists
+  SELECT COUNT(*) INTO v_count
+  FROM information_schema.triggers
+  WHERE trigger_name = 'on_media_comment_resolved'
+    AND event_object_table = 'media_comments';
+  IF v_count = 0 THEN
+    RAISE EXCEPTION 'Trigger on_media_comment_resolved not found on media_comments';
+  END IF;
+
+  -- UPDATE policy is now editors_update (not authors_update)
+  SELECT COUNT(*) INTO v_count
+  FROM pg_policies
+  WHERE tablename  = 'media_comments'
+    AND policyname = 'editors_update_media_comments';
+  IF v_count = 0 THEN
+    RAISE EXCEPTION 'Policy editors_update_media_comments not found on media_comments';
   END IF;
 
   RAISE NOTICE 'All assertions passed for 20260421000001_media_comments.sql';

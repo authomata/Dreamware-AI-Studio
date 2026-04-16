@@ -76,23 +76,30 @@ export default async function FileDetailPage({ params, searchParams }) {
 
   const comments = rawComments || [];
 
-  // Fetch author profiles for all unique authors (admin client bypasses profiles RLS)
-  const authorIds = [...new Set(comments.map((c) => c.author_id))];
-  let profileMap  = {};
+  // Fetch profiles for all unique authors + resolvers in one batch.
+  // Admin client is required because profiles RLS only exposes own profile to
+  // non-admin users; workspace members cannot directly read each other's profiles.
+  const authorIds   = comments.map((c) => c.author_id);
+  const resolverIds = comments.filter((c) => c.resolved_by).map((c) => c.resolved_by);
+  const allProfileIds = [...new Set([...authorIds, ...resolverIds])];
+  let profileMap = {};
 
-  if (authorIds.length > 0) {
+  if (allProfileIds.length > 0) {
     const { data: profiles } = await admin
       .from('profiles')
       .select('id, full_name, avatar_url')
-      .in('id', authorIds);
+      .in('id', allProfileIds);
 
     profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
   }
 
-  // Enrich comments with author data for server-side rendering
+  // Enrich comments with author + resolver data for server-side rendering
   const initialComments = comments.map((c) => ({
     ...c,
-    author: profileMap[c.author_id] || { id: c.author_id, full_name: null, avatar_url: null },
+    author:   profileMap[c.author_id]   || { id: c.author_id,   full_name: null, avatar_url: null },
+    resolver: c.resolved_by
+      ? (profileMap[c.resolved_by] || { id: c.resolved_by, full_name: null, avatar_url: null })
+      : null,
   }));
 
   // ── Derived state ──────────────────────────────────────────────────────────

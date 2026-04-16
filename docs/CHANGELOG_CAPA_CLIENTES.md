@@ -33,6 +33,31 @@ su checklist de verificación manual está aprobado por Andrés.
 - `app/w/[slug]/layout.js` — añade `<header>` con `NotificationBell workspaceId={workspace.id}` (h-11, border-b, justify-end). Ahora el layout envuelve con sidebar + top-bar + main.
 - `components/workspace/phase-status.js` — sin cambio de LIVE_PHASE (sigue en 2 hasta verificación). Actividad de Fase 3 (`activity`) anotada en el mapa.
 
+### Correcciones pre-aplicación (post-commit inicial)
+
+**Fix: ex-miembros en trigger de notificaciones (8d00eb8)**
+- El trigger `notify_on_media_comment` notificaba a usuarios ya removidos del workspace. Ambas ramas (uploader del archivo + comentadores previos) ahora hacen JOIN / IF EXISTS sobre `workspace_members` antes de INSERT. `is_workspace_member()` no se puede usar aquí porque en contexto SECURITY DEFINER `auth.uid()` resuelve al owner de la función (postgres), no al usuario destino.
+
+**Decisión de producto: patrón Frame.io para resolve (encima de 8d00eb8)**
+- Cambio de "autor + admin pueden resolver" → "cualquier editor+" (cómo funciona Frame.io).
+- Consecuencia positiva: `resolveComment` y `unresolveComment` ya no usan `createAdminClient()` — la RLS con `editor+` es suficiente. Menos uso de service_role.
+
+**Ajuste 1 — RLS policy de UPDATE en media_comments**
+- Renombrada de `authors_update_media_comments` a `editors_update_media_comments`.
+- Condición cambiada de `is_workspace_member(workspace_id, 'admin')` a `is_workspace_member(workspace_id, 'editor')`.
+- Tradeoff documentado en el SQL: la RLS no puede distinguir "editar body" de "marcar resuelto" porque ambas son UPDATE sobre la misma fila. La protección de body está en el server action `editComment` (autor === user.id). Aceptable porque los server actions son el único path de escritura desde el cliente.
+
+**Ajuste 2 — Auditoría visible al resolver (Frame.io)**
+- `page.js`: los IDs de `resolved_by` se agregan al batch de perfiles cargados vía admin client. Los comentarios enriquecidos incluyen `resolver: { id, full_name, avatar_url }`.
+- `CommentThread.js`: comentarios resueltos muestran `"Resuelto por {nombre} hace X"` en itálica bajo el body.
+
+**Ajuste 3 — Trigger `notify_on_media_comment_resolved`**
+- Nuevo trigger AFTER UPDATE que detecta transición `NULL → non-NULL` en `resolved_at`.
+- Notifica al autor del comentario cuando otro editor lo resuelve (para auditar y reabrir si no está de acuerdo).
+- No notifica si: el autor se auto-resolvió, o el autor ya no es miembro del workspace.
+- Mismo patrón de guard que `notify_on_media_comment` (JOIN directo sobre `workspace_members`, no `is_workspace_member()`).
+- Assertion agregada: verifica existencia del trigger + que la policy se llama `editors_update_media_comments`.
+
 ### ⚠️ Acciones pendientes antes de verificar
 
 1. **Aplicar migración en Supabase Dashboard (SQL Editor):**

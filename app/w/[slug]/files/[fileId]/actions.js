@@ -2,8 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { assertWorkspaceRole } from '@/lib/workspace/assertWorkspaceRole';
+// Note: createAdminClient is intentionally NOT imported here.
+// resolveComment and unresolveComment use the SSR client because the
+// editors_update_media_comments RLS policy (editor+) already matches
+// the required permission floor, removing the need for service_role.
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -164,9 +167,9 @@ export async function resolveComment(commentId) {
   if (!existing) throw new Error('Comentario no encontrado.');
   await assertWorkspaceRole(existing.workspace_id, 'editor');
 
-  // Use admin client so that editors (who are not the author) can also resolve
-  const admin = createAdminClient();
-  const { error } = await admin
+  // SSR client is sufficient: editors_update_media_comments RLS allows
+  // editor+ to UPDATE any comment in their workspace (Frame.io pattern).
+  const { error } = await supabase
     .from('media_comments')
     .update({ resolved_at: new Date().toISOString(), resolved_by: user.id })
     .eq('id', commentId);
@@ -196,8 +199,8 @@ export async function unresolveComment(commentId) {
   if (!existing) throw new Error('Comentario no encontrado.');
   await assertWorkspaceRole(existing.workspace_id, 'editor');
 
-  const admin = createAdminClient();
-  const { error } = await admin
+  // SSR client — same reasoning as resolveComment above.
+  const { error } = await supabase
     .from('media_comments')
     .update({ resolved_at: null, resolved_by: null })
     .eq('id', commentId);

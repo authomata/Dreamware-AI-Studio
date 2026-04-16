@@ -87,6 +87,12 @@ COMMENT ON TABLE workspace_invitations IS 'Pending invitations. Token is a secur
 -- SECURITY DEFINER: runs as the function owner (postgres), bypasses RLS on
 -- workspace_members so the check itself is not gated by the policy it is used in.
 -- SET search_path = public: prevents search_path injection attacks.
+--
+-- Platform admins (is_admin() = true) are treated as implicit owners of every
+-- workspace, so this function short-circuits to true for them regardless of
+-- whether they have a formal workspace_members row. This keeps the RLS layer
+-- consistent with assertWorkspaceRole() in the application layer and ensures the
+-- WorkspaceSwitcher and direct DB queries work correctly for platform admins.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION is_workspace_member(
   wid      uuid,
@@ -98,26 +104,33 @@ SECURITY DEFINER
 STABLE
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM workspace_members
-    WHERE workspace_id = wid
-      AND user_id      = auth.uid()
-      AND CASE min_role
-            WHEN 'viewer'    THEN role IN ('viewer', 'commenter', 'editor', 'admin', 'owner')
-            WHEN 'commenter' THEN role IN ('commenter', 'editor', 'admin', 'owner')
-            WHEN 'editor'    THEN role IN ('editor', 'admin', 'owner')
-            WHEN 'admin'     THEN role IN ('admin', 'owner')
-            WHEN 'owner'     THEN role = 'owner'
-            ELSE false
-          END
-  );
+  SELECT
+    -- Platform admins are implicit owners of all workspaces.
+    -- Short-circuit before touching workspace_members for performance.
+    is_admin()
+    OR EXISTS (
+      SELECT 1
+      FROM workspace_members
+      WHERE workspace_id = wid
+        AND user_id      = auth.uid()
+        AND CASE min_role
+              WHEN 'viewer'    THEN role IN ('viewer', 'commenter', 'editor', 'admin', 'owner')
+              WHEN 'commenter' THEN role IN ('commenter', 'editor', 'admin', 'owner')
+              WHEN 'editor'    THEN role IN ('editor', 'admin', 'owner')
+              WHEN 'admin'     THEN role IN ('admin', 'owner')
+              WHEN 'owner'     THEN role = 'owner'
+              ELSE false
+            END
+    );
 $$;
 
 COMMENT ON FUNCTION is_workspace_member(uuid, text) IS
-  'Returns true if auth.uid() is a member of workspace wid with at least min_role privilege.
+  'Returns true if auth.uid() is either:
+   (a) a platform admin (implicit owner of all workspaces — is_admin() short-circuit), or
+   (b) a formal member of workspace wid with at least min_role privilege.
    Role hierarchy: owner > admin > editor > commenter > viewer.
-   SECURITY DEFINER to avoid RLS recursion. Used in all workspace RLS policies.';
+   SECURITY DEFINER + SET search_path = public to avoid RLS recursion and
+   search_path injection. Used in all workspace RLS policies.';
 
 -- ---------------------------------------------------------------------------
 -- ASSERTIONS: verify CASE logic correctness before deploying RLS.
@@ -211,6 +224,8 @@ CREATE TRIGGER on_workspace_created_add_owner
 -- RLS — workspaces
 -- SELECT: any workspace member (viewer+) OR platform admin
 -- INSERT: platform admin ('admin') or team member ('team')
+--         ANTI-SPOOFING: created_by must equal auth.uid() so the trigger
+--         auto-inserts the real caller as owner, not an arbitrary user.
 -- UPDATE: workspace admin+
 -- DELETE: workspace owner only (soft-delete preferred via archived_at)
 -- ---------------------------------------------------------------------------
@@ -226,7 +241,11 @@ CREATE POLICY "workspace_select_members_or_admin" ON workspaces
 DROP POLICY IF EXISTS "workspace_insert_platform_admin_or_team" ON workspaces;
 CREATE POLICY "workspace_insert_platform_admin_or_team" ON workspaces
   FOR INSERT WITH CHECK (
-    EXISTS (
+    -- created_by must be the calling user: prevents a team member from
+    -- setting created_by to a different user_id, which would cause the
+    -- trigger to make that other user the workspace owner.
+    created_by = auth.uid()
+    AND EXISTS (
       SELECT 1 FROM profiles
       WHERE id = auth.uid()
         AND role IN ('admin', 'team')

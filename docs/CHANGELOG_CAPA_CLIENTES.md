@@ -37,8 +37,21 @@ su checklist de verificación manual está aprobado por Andrés.
 ### Modificado
 - `app/admin/AdminClient.js` — Agregado link "Clientes →" en header del admin para navegar a /admin/clients.
 
+### Correcciones de seguridad (post-commit, pre-aplicación en producción)
+
+**Corrección 1 — Anti-spoofing en INSERT de workspaces (CRÍTICA)**
+- La policy `workspace_insert_platform_admin_or_team` original no validaba que `created_by = auth.uid()`.
+- Un miembro `team` podía insertar un workspace con `created_by` apuntando a otro usuario, haciendo que el trigger auto-owner convirtiera a ESE usuario en owner.
+- Fix: `WITH CHECK (created_by = auth.uid() AND EXISTS (...role IN ('admin','team')))`.
+
+**Corrección 2 — Platform admin como owner implícito en is_workspace_member() (IMPORTANTE)**
+- La función original solo chequeaba `workspace_members`. Inconsistencia: `assertWorkspaceRole()` en el servidor trata a los admins como owners implícitos, pero la RLS no.
+- Consecuencia: el WorkspaceSwitcher y queries directas desde el cliente no mostraban workspaces donde el admin no era miembro formal.
+- Fix: `is_admin() OR EXISTS (...)` — el `is_admin()` actúa como short-circuit antes de tocar `workspace_members`.
+- Documentado en `docs/WORKSPACE_ROLES.md`.
+
 ### Migraciones para aplicar en producción
-1. `supabase/migrations/20260417000001_workspaces_core.sql`
+1. `supabase/migrations/20260417000001_workspaces_core.sql` (incluye las dos correcciones)
 
 ### Dependencias agregadas
 Ninguna nueva (lucide-react y date-fns ya instalados en Fase 0).

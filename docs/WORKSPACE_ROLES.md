@@ -64,7 +64,7 @@ encodes this hierarchy. A role "satisfies" a minimum role if its rank ≥ min ra
 
 ## Key implementation notes
 
-1. **`is_workspace_member(wid, min_role)`** is `SECURITY DEFINER STABLE SET search_path = public` — same pattern as `is_admin()`. Prevents RLS recursion.
+1. **`is_workspace_member(wid, min_role)`** is `SECURITY DEFINER STABLE SET search_path = public` — same pattern as `is_admin()`. Prevents RLS recursion. Returns `true` if either: (a) `is_admin()` short-circuits (platform admins are implicit owners of all workspaces), or (b) the user has a formal `workspace_members` row with sufficient role rank.
 
 2. **Acceptance of invitations** uses `createAdminClient()` (service role) in Server Actions — the invitation token is the authorization proof, not membership.
 

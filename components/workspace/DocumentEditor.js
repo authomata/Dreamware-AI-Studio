@@ -151,8 +151,12 @@ export default function DocumentEditor({
 
       Mention.configure({
         HTMLAttributes: { class: 'doc-mention' },
-        renderLabel({ node }) {
-          return `@${node.attrs.label ?? node.attrs.id}`;
+        // Tiptap v3: use renderHTML (renderLabel is deprecated and unreliable).
+        // options.HTMLAttributes is already merged by the extension with
+        // { data-type: 'mention' } + our { class: 'doc-mention' }.
+        renderHTML({ options, node }) {
+          const display = node.attrs.label ?? node.attrs.id ?? '';
+          return ['span', options.HTMLAttributes, `@${display}`];
         },
         suggestion: {
           items: ({ query }) => {
@@ -162,16 +166,8 @@ export default function DocumentEditor({
               .filter(m => m.label.toLowerCase().includes(q))
               .slice(0, 8);
           },
-          command: ({ editor, range, props }) => {
-            editor
-              .chain()
-              .focus()
-              .insertContentAt(range, [
-                { type: 'mention', attrs: { id: props.id, label: props.label } },
-                { type: 'text', text: ' ' },
-              ])
-              .run();
-          },
+          // No custom command — Tiptap v3 default spreads { ...props, mentionSuggestionChar }
+          // so { id, label } from MentionList are persisted in the node attrs automatically.
           render: () => {
             let component;
             let popup;

@@ -291,6 +291,8 @@ export default function LipSyncStudio({
   apiKey,
   onGenerationComplete,
   historyItems,
+  onAddHistory,
+  onDeleteHistory,
 }) {
   const PERSIST_KEY = "hg_lipsync_studio_persistent";
 
@@ -605,7 +607,11 @@ export default function LipSyncStudio({
         timestamp: new Date().toISOString(),
       };
 
-      if (!historyItems) addToInternalHistory(entry);
+      if (historyItems != null && onAddHistory) {
+        onAddHistory(entry);
+      } else if (!historyItems) {
+        addToInternalHistory(entry);
+      }
 
       setActiveResultUrl(res.url);
       setActiveHistoryIdx(0);
@@ -736,7 +742,11 @@ export default function LipSyncStudio({
                     title="Delete"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!historyItems) setInternalHistory((prev) => prev.filter((_, i) => i !== idx));
+                      if (historyItems != null && onDeleteHistory) {
+                        onDeleteHistory(history[idx]?.id);
+                      } else if (!historyItems) {
+                        setInternalHistory((prev) => prev.filter((_, i) => i !== idx));
+                      }
                     }}
                     className="p-2 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-red-500 transition-all border border-white/10"
                   >

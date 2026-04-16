@@ -465,6 +465,8 @@ export default function CinemaStudio({
   apiKey,
   onGenerationComplete,
   historyItems,
+  onAddHistory,
+  onDeleteHistory,
 }) {
   const PERSIST_KEY = "hg_cinema_studio_persistent";
 
@@ -589,7 +591,9 @@ export default function CinemaStudio({
         };
 
         // Only update internal history if not using prop-driven history
-        if (historyItems == null) {
+        if (historyItems != null && onAddHistory) {
+          onAddHistory(entry);
+        } else if (historyItems == null) {
           setInternalHistory((prev) => [entry, ...prev].slice(0, 50));
         }
 
@@ -751,7 +755,11 @@ export default function CinemaStudio({
                     title="Delete"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (historyItems == null) setInternalHistory((prev) => prev.filter((_, i) => i !== idx));
+                      if (historyItems != null && onDeleteHistory) {
+                        onDeleteHistory(history[idx]?.id);
+                      } else if (historyItems == null) {
+                        setInternalHistory((prev) => prev.filter((_, i) => i !== idx));
+                      }
                     }}
                     className="p-2 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-red-500 transition-all border border-white/10"
                   >

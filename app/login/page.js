@@ -1,14 +1,11 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [supabase] = useState(() => createClient());
 
   const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
@@ -23,6 +20,9 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     setMessage('');
+
+    // Create client inside the handler — never runs during SSR/build
+    const supabase = createClient();
 
     try {
       if (mode === 'login') {

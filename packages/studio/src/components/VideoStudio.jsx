@@ -235,6 +235,8 @@ export default function VideoStudio({
   apiKey,
   onGenerationComplete,
   historyItems,
+  onAddHistory,
+  onDeleteHistory,
   initialImage,
   onInitialImageConsumed,
 }) {
@@ -729,7 +731,11 @@ export default function VideoStudio({
           model: selectedModel,
           timestamp: new Date().toISOString(),
         };
-        addToLocalHistory(entry);
+        if (historyItems != null && onAddHistory) {
+          onAddHistory(entry);
+        } else {
+          addToLocalHistory(entry);
+        }
         showVideoInCanvas(res.url, selectedModel);
         if (onGenerationComplete)
           onGenerationComplete({
@@ -769,7 +775,11 @@ export default function VideoStudio({
           duration: selectedDuration,
           timestamp: new Date().toISOString(),
         };
-        addToLocalHistory(entry);
+        if (historyItems != null && onAddHistory) {
+          onAddHistory(entry);
+        } else {
+          addToLocalHistory(entry);
+        }
         showVideoInCanvas(res.url, selectedModel);
         if (onGenerationComplete)
           onGenerationComplete({
@@ -819,7 +829,11 @@ export default function VideoStudio({
           duration: selectedDuration,
           timestamp: new Date().toISOString(),
         };
-        addToLocalHistory(entry);
+        if (historyItems != null && onAddHistory) {
+          onAddHistory(entry);
+        } else {
+          addToLocalHistory(entry);
+        }
         showVideoInCanvas(res.url, selectedModel);
         if (onGenerationComplete)
           onGenerationComplete({
@@ -996,7 +1010,11 @@ export default function VideoStudio({
                       title="Delete"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!historyItems) setLocalHistory((prev) => prev.filter((_, i) => i !== idx));
+                        if (historyItems != null && onDeleteHistory) {
+                          onDeleteHistory(history[idx]?.id);
+                        } else if (!historyItems) {
+                          setLocalHistory((prev) => prev.filter((_, i) => i !== idx));
+                        }
                       }}
                       className="p-2 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-red-500 transition-all border border-white/10"
                     >

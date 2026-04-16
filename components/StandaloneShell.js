@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useSupabaseHistory } from '@/hooks/useSupabaseHistory';
 import { ImageStudio, VideoStudio, LipSyncStudio, CinemaStudio, CharacterStudio, StoryStudio, getUserBalance } from 'studio';
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
@@ -94,6 +95,12 @@ export default function StandaloneShell() {
   const [keyLoading, setKeyLoading] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
   const [pendingAnimateUrl, setPendingAnimateUrl] = useState(null);
+
+  // ── Supabase history per studio type ────────────────────────────────────────
+  const imageHistory  = useSupabaseHistory('image');
+  const videoHistory  = useSupabaseHistory('video');
+  const lipsyncHistory = useSupabaseHistory('lipsync');
+  const cinemaHistory = useSupabaseHistory('cinema');
 
   const handleAnimate = useCallback((imageUrl) => {
     setPendingAnimateUrl(imageUrl);
@@ -314,10 +321,22 @@ export default function StandaloneShell() {
 
         {/* Studio content */}
         <div className="flex-1 min-h-0 overflow-hidden">
-          {activeTab === 'image'     && <ImageStudio     apiKey={apiKey} onAnimate={handleAnimate} />}
-          {activeTab === 'video'     && <VideoStudio     apiKey={apiKey} initialImage={pendingAnimateUrl} onInitialImageConsumed={() => setPendingAnimateUrl(null)} />}
-          {activeTab === 'lipsync'   && <LipSyncStudio   apiKey={apiKey} />}
-          {activeTab === 'cinema'    && <CinemaStudio    apiKey={apiKey} />}
+          {activeTab === 'image'     && <ImageStudio     apiKey={apiKey} onAnimate={handleAnimate}
+                                          historyItems={imageHistory.history}
+                                          onAddHistory={imageHistory.addEntry}
+                                          onDeleteHistory={imageHistory.deleteEntry} />}
+          {activeTab === 'video'     && <VideoStudio     apiKey={apiKey} initialImage={pendingAnimateUrl} onInitialImageConsumed={() => setPendingAnimateUrl(null)}
+                                          historyItems={videoHistory.history}
+                                          onAddHistory={videoHistory.addEntry}
+                                          onDeleteHistory={videoHistory.deleteEntry} />}
+          {activeTab === 'lipsync'   && <LipSyncStudio   apiKey={apiKey}
+                                          historyItems={lipsyncHistory.history}
+                                          onAddHistory={lipsyncHistory.addEntry}
+                                          onDeleteHistory={lipsyncHistory.deleteEntry} />}
+          {activeTab === 'cinema'    && <CinemaStudio    apiKey={apiKey}
+                                          historyItems={cinemaHistory.history}
+                                          onAddHistory={cinemaHistory.addEntry}
+                                          onDeleteHistory={cinemaHistory.deleteEntry} />}
           {activeTab === 'character' && <CharacterStudio apiKey={apiKey} />}
           {activeTab === 'story'     && <StoryStudio     apiKey={apiKey} onAnimate={handleAnimate} />}
         </div>

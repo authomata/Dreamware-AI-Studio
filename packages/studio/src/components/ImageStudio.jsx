@@ -718,6 +718,8 @@ export default function ImageStudio({
   apiKey,
   onGenerationComplete,
   historyItems,
+  onAddHistory,
+  onDeleteHistory,
   onAnimate,
 }) {
   const PERSIST_KEY = "hg_image_studio_persistent";
@@ -1032,13 +1034,15 @@ export default function ImageStudio({
   // ── History helpers ──────────────────────────────────────────────────────
   const addToHistory = useCallback(
     (entry) => {
-      if (!historyItems) {
+      if (historyItems != null && onAddHistory) {
+        onAddHistory(entry);
+      } else if (!historyItems) {
         setLocalHistory((prev) => [entry, ...prev.slice(0, 49)]);
       }
       setActiveHistoryIdx(0);
       setCurrentImageUrl(entry.url);
     },
-    [historyItems],
+    [historyItems, onAddHistory],
   );
 
   // ── View state ─────────────────────────────────────
@@ -1220,7 +1224,11 @@ export default function ImageStudio({
                     title="Delete"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!historyItems) setLocalHistory((prev) => prev.filter((_, i) => i !== idx));
+                      if (historyItems != null && onDeleteHistory) {
+                        onDeleteHistory(history[idx]?.id);
+                      } else if (!historyItems) {
+                        setLocalHistory((prev) => prev.filter((_, i) => i !== idx));
+                      }
                     }}
                     className="p-2 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-red-500 transition-all border border-white/10"
                   >

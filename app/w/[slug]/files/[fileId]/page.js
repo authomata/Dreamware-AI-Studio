@@ -2,25 +2,26 @@ import { redirect, notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getWorkspaceBySlug } from '@/lib/workspace/getWorkspaceBySlug';
-import FilePreview from '@/components/workspace/FilePreview';
 import { FileIcon as FileIconComponent, formatBytes, mimeLabel } from '@/components/workspace/FileIcon';
 import FileIcon from '@/components/workspace/FileIcon';
 import { ArrowLeft, Star, Download } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import FileDetailClient from './FileDetailClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function FileDetailPage({ params }) {
-  const { slug, fileId } = await params;
+export default async function FileDetailPage({ params, searchParams }) {
+  const { slug, fileId }   = await params;
+  const { c: focusCommentId } = (await searchParams) || {};
 
   const workspace = await getWorkspaceBySlug(slug);
   if (!workspace) redirect('/');
 
-  const supabase  = await createClient();
-  const admin     = createAdminClient();
+  const supabase = await createClient();
+  const admin    = createAdminClient();
 
-  // Fetch file record
+  // ── Fetch file record ──────────────────────────────────────────────────────
   const { data: file } = await supabase
     .from('files')
     .select('id, name, mime_type, size_bytes, created_at, is_review_asset, storage_path, folder_id, uploaded_by, metadata')
@@ -30,14 +31,13 @@ export default async function FileDetailPage({ params }) {
 
   if (!file) notFound();
 
-  // Get uploader profile
+  // ── Uploader info ──────────────────────────────────────────────────────────
   const { data: uploaderProfile } = await supabase
     .from('profiles')
     .select('full_name')
     .eq('id', file.uploaded_by)
     .single();
 
-  // Get uploader email (admin client)
   let uploaderEmail = null;
   try {
     const { data: { user: uploaderUser } } = await admin.auth.admin.getUserById(file.uploaded_by);
@@ -46,7 +46,7 @@ export default async function FileDetailPage({ params }) {
 
   const uploaderName = uploaderProfile?.full_name || uploaderEmail || 'Usuario';
 
-  // Get folder name for breadcrumb
+  // ── Folder breadcrumb ──────────────────────────────────────────────────────
   let folderName = null;
   if (file.folder_id) {
     const { data: folder } = await supabase
@@ -57,19 +57,51 @@ export default async function FileDetailPage({ params }) {
     folderName = folder?.name;
   }
 
-  // Generate signed URL server-side (1-hour expiry)
+  // ── Signed URL (1-hour expiry) ─────────────────────────────────────────────
   const { data: signedData } = await admin.storage
     .from('workspace-files')
     .createSignedUrl(file.storage_path, 3600);
 
   const signedUrl = signedData?.signedUrl || null;
 
+  // ── Current user ──────────────────────────────────────────────────────────
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+  // ── Phase 3: fetch initial comments ───────────────────────────────────────
+  const { data: rawComments } = await supabase
+    .from('media_comments')
+    .select('id, body, timestamp_ms, x_percent, y_percent, resolved_at, resolved_by, parent_id, created_at, author_id')
+    .eq('file_id', fileId)
+    .order('created_at', { ascending: true });
+
+  const comments = rawComments || [];
+
+  // Fetch author profiles for all unique authors (admin client bypasses profiles RLS)
+  const authorIds = [...new Set(comments.map((c) => c.author_id))];
+  let profileMap  = {};
+
+  if (authorIds.length > 0) {
+    const { data: profiles } = await admin
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .in('id', authorIds);
+
+    profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
+  }
+
+  // Enrich comments with author data for server-side rendering
+  const initialComments = comments.map((c) => ({
+    ...c,
+    author: profileMap[c.author_id] || { id: c.author_id, full_name: null, avatar_url: null },
+  }));
+
+  // ── Derived state ──────────────────────────────────────────────────────────
   const canEdit = ['owner', 'admin', 'editor'].includes(workspace.member_role);
 
   return (
-    <div className="min-h-screen">
-      {/* Top bar */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-zinc-900">
+    <div className="min-h-screen flex flex-col">
+      {/* ── Top bar ─────────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-zinc-900 shrink-0">
         <a
           href={file.folder_id
             ? `/w/${slug}/files?folder=${file.folder_id}`
@@ -109,51 +141,39 @@ export default async function FileDetailPage({ params }) {
         </div>
       </div>
 
-      {/* Main layout: preview left, metadata right */}
-      <div className="flex flex-col lg:flex-row min-h-[calc(100vh-65px)]">
-        {/* Preview area */}
-        <div className="flex-1 flex items-center justify-center p-6 bg-zinc-950/50">
-          <div className="w-full max-w-4xl">
-            <FilePreview file={file} signedUrl={signedUrl} />
-          </div>
-        </div>
-
-        {/* Metadata sidebar */}
-        <aside className="w-full lg:w-72 border-t lg:border-t-0 lg:border-l border-zinc-900 p-5 space-y-5">
-          <div>
-            <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">Detalles</p>
-            <dl className="space-y-2.5">
-              <MetaRow label="Tipo"     value={mimeLabel(file.mime_type)} />
-              <MetaRow label="Tamaño"   value={formatBytes(file.size_bytes)} />
-              <MetaRow label="Subido por" value={uploaderName} />
-              <MetaRow
-                label="Fecha"
-                value={formatDistanceToNow(new Date(file.created_at), { addSuffix: true, locale: es })}
-              />
-              {file.metadata?.width && file.metadata?.height && (
-                <MetaRow label="Dimensiones" value={`${file.metadata.width} × ${file.metadata.height}`} />
-              )}
-            </dl>
-          </div>
-
-          {/* Phase 3 placeholder */}
-          <div className="p-4 border border-zinc-800/50 rounded-xl">
-            <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">Comentarios</p>
-            <p className="text-xs text-zinc-700">
-              Los comentarios con timestamp llegan en la Fase 3 — Media Review.
-            </p>
-          </div>
-        </aside>
+      {/* ── File metadata strip (always visible) ────────────────────────────── */}
+      <div className="flex items-center gap-6 px-6 py-2.5 border-b border-zinc-900/50 text-xs text-zinc-500 shrink-0 flex-wrap">
+        <MetaChip label="Tipo"     value={mimeLabel(file.mime_type)} />
+        <MetaChip label="Tamaño"   value={formatBytes(file.size_bytes)} />
+        <MetaChip label="Subido por" value={uploaderName} />
+        <MetaChip
+          label="Fecha"
+          value={formatDistanceToNow(new Date(file.created_at), { addSuffix: true, locale: es })}
+        />
+        {file.metadata?.width && file.metadata?.height && (
+          <MetaChip label="Dimensiones" value={`${file.metadata.width} × ${file.metadata.height}`} />
+        )}
       </div>
+
+      {/* ── Interactive split panel (client component) ──────────────────────── */}
+      <FileDetailClient
+        file={file}
+        workspace={{ id: workspace.id, slug, member_role: workspace.member_role }}
+        signedUrl={signedUrl}
+        initialComments={initialComments}
+        profileMap={profileMap}
+        currentUserId={currentUser?.id}
+        initialFocusedCommentId={focusCommentId || null}
+      />
     </div>
   );
 }
 
-function MetaRow({ label, value }) {
+function MetaChip({ label, value }) {
   return (
-    <div className="flex justify-between gap-2">
-      <dt className="text-xs text-zinc-500">{label}</dt>
-      <dd className="text-xs text-zinc-300 text-right">{value}</dd>
-    </div>
+    <span className="flex items-center gap-1.5">
+      <span className="text-zinc-700">{label}:</span>
+      <span className="text-zinc-400">{value}</span>
+    </span>
   );
 }

@@ -5,6 +5,56 @@ su checklist de verificación manual está aprobado por Andrés.
 
 ## [Unreleased]
 
+## Fase 3 — Media review con comentarios (2026-04-16) — ⏳ Pendiente aplicación de migración y verificación manual
+
+### Creado
+
+**Migración (pendiente de aplicar por Andrés):**
+- `supabase/migrations/20260421000001_media_comments.sql` — tabla `media_comments` + tabla `notifications`, RLS en ambas (SELECT viewer+, INSERT commenter+ con author guard, UPDATE/DELETE autor-o-admin), trigger SECURITY DEFINER `notify_on_media_comment` (notifica uploader del archivo + todos los comentadores previos al insertar nuevo comentario), ALTER PUBLICATION supabase_realtime para ambas tablas, 4 assertions + queries de verificación.
+
+**Server Actions:**
+- `app/w/[slug]/files/[fileId]/actions.js` — `createComment` (commenter+, valida con assertWorkspaceRole), `editComment` (solo autor), `deleteComment` (autor o admin), `resolveComment` (editor+, usa admin client para bypass RLS UPDATE), `unresolveComment` (editor+), `markNotificationRead`, `markAllNotificationsRead`.
+
+**Componentes nuevos:**
+- `components/workspace/VideoReviewer.js` — player HTML5 nativo con timeline de pins de comentarios. `onMountSeekFn` expone imperativo `seekTo(ms)` al padre. Pins en timeline clickeables → `onFocusComment`. Controles: play/pause, mute, timecode, fullscreen.
+- `components/workspace/ImageReviewer.js` — imagen con pins absolute-positioned por `x_percent/y_percent`. Click en imagen → `onCoordSelect`. Pins numerados, pin pendiente con animación pulse.
+- `components/workspace/MediaReviewer.js` — wrapper que decide VideoReviewer vs ImageReviewer vs FilePreview según MIME y `is_review_asset`. Dynamic import (no SSR).
+- `components/workspace/CommentThread.js` — lista de comentarios top-level + replies anidadas 1 nivel. Actions inline: editar, eliminar, resolver/reabrir, responder. Scroll-into-view cuando `focusedCommentId` cambia. Filter "ocultar/mostrar resueltos".
+- `components/workspace/CommentComposer.js` — textarea con badges de timestamp (video) o coordenada (imagen) adjuntos al comentario. ⌘Enter para publicar. Banner de reply-to con cancelar.
+- `components/workspace/NotificationBell.js` — campana con badge de no leídos, realtime via `postgres_changes` con filter `user_id=eq.{userId}`, dropdown últimas 20 notificaciones por workspace, "Marcar todo como leído" bulk action. Mounted in workspace layout.
+
+**Client component:**
+- `app/w/[slug]/files/[fileId]/FileDetailClient.js` — maneja estado compartido entre MediaReviewer y CommentPanel (activeTimestamp, activeCoord, focusedCommentId, replyToId). Suscripción realtime a `media_comments` por file_id. Tab mobile: Preview / Comentarios. `seekFnRef` para controlar el video desde el panel de comentarios (`onSeekRequest`).
+
+**Ruta:**
+- `app/w/[slug]/files/[fileId]/page.js` — reescrito: fetches file + uploader + comments (con enriquecimiento de perfiles via admin client) → renderiza top bar estático + strip de metadata + `FileDetailClient`. Soporte `?c={comment_id}` para deep link a comentario específico.
+
+### Modificado
+- `app/w/[slug]/layout.js` — añade `<header>` con `NotificationBell workspaceId={workspace.id}` (h-11, border-b, justify-end). Ahora el layout envuelve con sidebar + top-bar + main.
+- `components/workspace/phase-status.js` — sin cambio de LIVE_PHASE (sigue en 2 hasta verificación). Actividad de Fase 3 (`activity`) anotada en el mapa.
+
+### ⚠️ Acciones pendientes antes de verificar
+
+1. **Aplicar migración en Supabase Dashboard (SQL Editor):**
+   - `supabase/migrations/20260421000001_media_comments.sql`
+   - Revisar assertions en el DO block — deben pasar sin ERROR
+
+2. **Verificar realtime en Supabase Dashboard:**
+   - Settings → Realtime → Publicaciones → `supabase_realtime`
+   - Confirmar que `media_comments` y `notifications` aparecen
+
+3. **Push a producción** (código commiteado a continuación)
+
+### Notas de diseño
+
+- `resolveComment` usa admin client para el UPDATE, porque el committer puede no ser el autor del comentario y la RLS UPDATE solo permite autor-o-admin. La guarda `assertWorkspaceRole(..., 'editor')` hace la validación server-side.
+- Los perfiles de autores de comentarios se obtienen via admin client (profiles RLS actualmente solo permite ver el propio perfil). Esto evita necesitar una migration extra a profiles en Fase 3. Deuda: agregar policy `workspace_members_read_coworker_profiles` en Fase 4 para que el cliente pueda hacer el join directamente.
+- NotificationBell importa las actions desde el path dinámico `app/w/[slug]/files/[fileId]/actions`. Next.js trata los segmentos `[slug]` y `[fileId]` como nombres de directorio literales en imports estáticos — funciona correctamente en build.
+- Pins de imagen numerados (1, 2, 3…) para que el panel de comentarios pueda correlacionarlos visualmente.
+- Deep link `?c={comment_id}` soportado via `initialFocusedCommentId` prop — permite que las notificaciones lleven al archivo y hagan scroll al comentario específico.
+
+---
+
 ## Fase 2 — Archivos y folders con Supabase Storage (2026-04-16) — ✅ Verificada end-to-end en producción (2026-04-16)
 
 ### Creado

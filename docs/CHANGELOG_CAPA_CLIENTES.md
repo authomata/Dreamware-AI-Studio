@@ -5,7 +5,14 @@ su checklist de verificación manual está aprobado por Andrés.
 
 ## [Unreleased]
 
-## Fase 1 — Workspaces core + navegación base (2026-04-15) — ⏳ Pendiente verificación manual
+## Fase 1 — Workspaces core + navegación base (2026-04-15) — ✅ Verificada end-to-end en producción (2026-04-16)
+
+Verificación manual aprobada por Andrés:
+- Workspace "Verant" creado, trigger auto-owner funcionó correctamente
+- WorkspaceSwitcher visible en /studio para usuarios con workspace asignado
+- Invitación generada, aceptada, segundo usuario aterriza con rol Editor
+- RoleBadge "Editor" visible, link Config oculto (permisos respetados en UI y server)
+- Deuda UX post-MVP anotada: preservar token tras signup para auto-ejecutar acceptInvitation
 
 ### Creado
 - `supabase/migrations/20260417000001_workspaces_core.sql` — Tablas workspaces, workspace_members, workspace_invitations. Función is_workspace_member() SECURITY DEFINER. RLS policies para las 3 tablas. Trigger auto-add owner. DO block con 25 assertions del CASE hierarchy.

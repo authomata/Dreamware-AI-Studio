@@ -33,7 +33,7 @@ export default function WorkspaceSidebar({ workspace }) {
 
   const brandBg      = workspace.brand_color || '#d9ff00';
   const brandInitial = workspace.name.charAt(0).toUpperCase();
-  const LIVE_PHASE   = 1; // increment as phases go live
+  const LIVE_PHASE   = 2; // increment as phases go live
 
   return (
     <aside className="

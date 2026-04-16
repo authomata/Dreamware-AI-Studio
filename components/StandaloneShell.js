@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useSupabaseHistory } from '@/hooks/useSupabaseHistory';
+import { useSupabaseCharacters } from '@/hooks/useSupabaseCharacters';
 import { ImageStudio, VideoStudio, LipSyncStudio, CinemaStudio, CharacterStudio, StoryStudio, getUserBalance } from 'studio';
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
@@ -97,10 +98,13 @@ export default function StandaloneShell() {
   const [pendingAnimateUrl, setPendingAnimateUrl] = useState(null);
 
   // ── Supabase history per studio type ────────────────────────────────────────
-  const imageHistory  = useSupabaseHistory('image');
-  const videoHistory  = useSupabaseHistory('video');
+  const imageHistory   = useSupabaseHistory('image');
+  const videoHistory   = useSupabaseHistory('video');
   const lipsyncHistory = useSupabaseHistory('lipsync');
-  const cinemaHistory = useSupabaseHistory('cinema');
+  const cinemaHistory  = useSupabaseHistory('cinema');
+
+  // ── Supabase character library ───────────────────────────────────────────────
+  const { characters, saveCharacter, deleteCharacter } = useSupabaseCharacters();
 
   const handleAnimate = useCallback((imageUrl) => {
     setPendingAnimateUrl(imageUrl);
@@ -324,7 +328,8 @@ export default function StandaloneShell() {
           {activeTab === 'image'     && <ImageStudio     apiKey={apiKey} onAnimate={handleAnimate}
                                           historyItems={imageHistory.history}
                                           onAddHistory={imageHistory.addEntry}
-                                          onDeleteHistory={imageHistory.deleteEntry} />}
+                                          onDeleteHistory={imageHistory.deleteEntry}
+                                          characters={characters} />}
           {activeTab === 'video'     && <VideoStudio     apiKey={apiKey} initialImage={pendingAnimateUrl} onInitialImageConsumed={() => setPendingAnimateUrl(null)}
                                           historyItems={videoHistory.history}
                                           onAddHistory={videoHistory.addEntry}
@@ -337,8 +342,12 @@ export default function StandaloneShell() {
                                           historyItems={cinemaHistory.history}
                                           onAddHistory={cinemaHistory.addEntry}
                                           onDeleteHistory={cinemaHistory.deleteEntry} />}
-          {activeTab === 'character' && <CharacterStudio apiKey={apiKey} />}
-          {activeTab === 'story'     && <StoryStudio     apiKey={apiKey} onAnimate={handleAnimate} />}
+          {activeTab === 'character' && <CharacterStudio apiKey={apiKey}
+                                          characters={characters}
+                                          onSaveCharacter={saveCharacter}
+                                          onDeleteCharacter={deleteCharacter} />}
+          {activeTab === 'story'     && <StoryStudio     apiKey={apiKey} onAnimate={handleAnimate}
+                                          characters={characters} />}
         </div>
       </div>
 

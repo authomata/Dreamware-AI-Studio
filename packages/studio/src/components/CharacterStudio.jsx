@@ -378,28 +378,43 @@ function GalleryView({ characters, onNew, onDelete }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function CharacterStudio({ apiKey }) {
+export default function CharacterStudio({ apiKey, characters: charactersProp, onSaveCharacter, onDeleteCharacter }) {
   const [view, setView] = useState("gallery"); // 'gallery' | 'new'
-  const [characters, setCharacters] = useState([]);
+  const [localCharacters, setLocalCharacters] = useState([]);
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    setCharacters(loadCharacters());
-  }, []);
+  // Use prop-driven characters (Supabase) if provided, else fall back to localStorage
+  const characters = charactersProp ?? localCharacters;
 
-  // Save to localStorage whenever characters change
+  // Load from localStorage on mount (only when not using Supabase)
   useEffect(() => {
-    saveCharacters(characters);
-  }, [characters]);
+    if (charactersProp == null) {
+      setLocalCharacters(loadCharacters());
+    }
+  }, [charactersProp]);
+
+  // Save to localStorage whenever local characters change (only when not using Supabase)
+  useEffect(() => {
+    if (charactersProp == null) {
+      saveCharacters(localCharacters);
+    }
+  }, [localCharacters, charactersProp]);
 
   const handleSave = useCallback((character) => {
-    setCharacters((prev) => [character, ...prev]);
+    if (charactersProp != null && onSaveCharacter) {
+      onSaveCharacter(character);
+    } else {
+      setLocalCharacters((prev) => [character, ...prev]);
+    }
     setView("gallery");
-  }, []);
+  }, [charactersProp, onSaveCharacter]);
 
   const handleDelete = useCallback((id) => {
-    setCharacters((prev) => prev.filter((c) => c.id !== id));
-  }, []);
+    if (charactersProp != null && onDeleteCharacter) {
+      onDeleteCharacter(id);
+    } else {
+      setLocalCharacters((prev) => prev.filter((c) => c.id !== id));
+    }
+  }, [charactersProp, onDeleteCharacter]);
 
   return (
     <div className="w-full h-full flex flex-col items-center bg-app-bg overflow-hidden">

@@ -82,7 +82,7 @@ function FrameSkeleton({ status, sceneNumber }) {
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-export default function StoryStudio({ apiKey, onAnimate }) {
+export default function StoryStudio({ apiKey, onAnimate, characters: charactersProp }) {
   // ── setup state ─────────────────────────────────────────────────────────────
   const [storyPrompt, setStoryPrompt] = useState("");
   const [sceneCount, setSceneCount] = useState(5);
@@ -109,8 +109,12 @@ export default function StoryStudio({ apiKey, onAnimate }) {
   const filmstripRef = useRef(null);
   const abortRef = useRef(false); // set to true when user cancels generation
 
-  // ── load characters from localStorage ───────────────────────────────────────
+  // ── load characters (from prop or localStorage fallback) ────────────────────
   useEffect(() => {
+    if (charactersProp != null) {
+      setSavedCharacters(charactersProp);
+      return;
+    }
     try {
       const raw = localStorage.getItem("dw_characters");
       if (raw) setSavedCharacters(JSON.parse(raw));
@@ -122,7 +126,7 @@ export default function StoryStudio({ apiKey, onAnimate }) {
     };
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
-  }, []);
+  }, [charactersProp]);
 
   // ── close char picker on outside click ──────────────────────────────────────
   useEffect(() => {
@@ -157,9 +161,9 @@ export default function StoryStudio({ apiKey, onAnimate }) {
         setPhase("plan_review");
       }
       if (data.selectedCharacterIds?.length > 0) {
-        // Re-hydrate from dw_characters
+        // Re-hydrate from prop (Supabase) or localStorage fallback
         try {
-          const chars = JSON.parse(localStorage.getItem("dw_characters") || "[]");
+          const chars = charactersProp ?? JSON.parse(localStorage.getItem("dw_characters") || "[]");
           setSelectedCharacters(chars.filter((c) => data.selectedCharacterIds.includes(c.id)));
         } catch {}
       }

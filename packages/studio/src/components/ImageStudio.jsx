@@ -721,6 +721,7 @@ export default function ImageStudio({
   onAddHistory,
   onDeleteHistory,
   onAnimate,
+  characters: charactersProp,
 }) {
   const PERSIST_KEY = "hg_image_studio_persistent";
 
@@ -771,8 +772,12 @@ export default function ImageStudio({
   const dropdownRef = useRef(null);
   const uploadPickerResetRef = useRef(null); // not used directly — managed via key
 
-  // ── Load saved characters from localStorage ─────────────────────────────
+  // ── Load saved characters (from prop or localStorage fallback) ─────────────
   useEffect(() => {
+    if (charactersProp != null) {
+      setSavedCharacters(charactersProp);
+      return;
+    }
     try {
       const raw = localStorage.getItem("dw_characters");
       if (raw) setSavedCharacters(JSON.parse(raw));
@@ -785,7 +790,7 @@ export default function ImageStudio({
     };
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
-  }, []);
+  }, [charactersProp]);
 
   // ── Character select / deselect ─────────────────────────────────────────
   const handleCharacterSelect = useCallback(

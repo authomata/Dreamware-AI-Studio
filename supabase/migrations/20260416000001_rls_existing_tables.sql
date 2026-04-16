@@ -58,7 +58,8 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- UPDATE: own profile only, with CHECK that prevents self-escalating role
+-- UPDATE: own row only. Role escalation is prevented by column-level GRANT below,
+-- not by WITH CHECK (which would require a recursive self-join on profiles).
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'users_update_own_profile'
@@ -66,22 +67,45 @@ DO $$ BEGIN
     CREATE POLICY "users_update_own_profile" ON profiles
       FOR UPDATE
       USING (auth.uid() = id)
-      WITH CHECK (
-        auth.uid() = id
-        AND role = (SELECT role FROM profiles WHERE id = auth.uid())
-      );
+      WITH CHECK (auth.uid() = id);
   END IF;
 END $$;
 
--- INSERT: handled only by trigger (handle_new_user runs as SECURITY DEFINER)
--- No explicit INSERT policy needed for normal users.
+-- INSERT: no policy needed — handled exclusively by handle_new_user() trigger
+-- which runs as SECURITY DEFINER (service_role level). Direct client inserts
+-- are already blocked by the absence of an INSERT policy when RLS is ON.
 
--- DELETE: not allowed for users (only service_role/admin panel)
--- No DELETE policy = blocked by default when RLS is ON.
+-- DELETE: no policy needed — admin-only via service_role / assertAdmin guard.
+-- Direct client deletes are already blocked by RLS.
+
+-- ---------------------------------------------------------------------------
+-- COLUMN-LEVEL PRIVILEGES: profiles
+-- Prevents privilege escalation via direct anon-key requests.
+-- The UPDATE policy above allows updating own row, but we restrict WHICH
+-- columns the authenticated role can touch.
+--
+-- Sensitive columns (role, credit_limit, credits_used) are admin-only via
+-- service_role. Regular users can never update them from the client.
+--
+-- full_name and avatar_url are granted in migration 002, after the
+-- ALTER TABLE that creates those columns.
+--
+-- INSERT/DELETE are also explicitly revoked as defense-in-depth:
+-- - INSERT is handled by the handle_new_user trigger (service_role);
+--   direct client inserts are already blocked by RLS, but REVOKE prevents
+--   regressions if a permissive INSERT policy is ever accidentally added.
+-- - DELETE is admin-only; same defense-in-depth rationale.
+-- ---------------------------------------------------------------------------
+REVOKE UPDATE ON profiles FROM authenticated;
+GRANT  UPDATE (muapi_key, updated_at) ON profiles TO authenticated;
+
+REVOKE INSERT, DELETE ON profiles FROM authenticated;
 
 -- ---------------------------------------------------------------------------
 -- TABLE: generations
 -- Replace broad "own generations" with explicit WITH CHECK.
+-- No column-level REVOKE needed: no sensitive privilege columns; user_id
+-- reassignment is already blocked by WITH CHECK (auth.uid() = user_id).
 -- ---------------------------------------------------------------------------
 
 DO $$ BEGIN
@@ -106,6 +130,9 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- TABLE: characters
 -- Replace broad "own characters" with explicit WITH CHECK.
+-- No column-level REVOKE needed: all columns are user-controlled content
+-- (name, description, trigger_prompt, reference_images, thumbnail).
+-- user_id reassignment blocked by WITH CHECK.
 -- ---------------------------------------------------------------------------
 
 DO $$ BEGIN
@@ -130,6 +157,8 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- TABLE: platform_settings
 -- Replace old "admin only" with explicit name from SPEC.
+-- No column-level REVOKE needed: is_admin() blocks all non-admin access
+-- entirely at the RLS level — no authenticated user can touch any column.
 -- ---------------------------------------------------------------------------
 
 DO $$ BEGIN
@@ -152,13 +181,23 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- VERIFICATION QUERIES (run manually after applying to confirm):
 -- ---------------------------------------------------------------------------
--- SELECT tablename, policyname, cmd, qual
+-- 1. Check policies exist (should return 6 rows):
+-- SELECT tablename, policyname, cmd
 -- FROM pg_policies
 -- WHERE tablename IN ('profiles','generations','characters','platform_settings')
 -- ORDER BY tablename, policyname;
 --
--- -- Should return 5 policies total:
--- -- profiles: users_read_own_profile, admins_read_all_profiles, users_update_own_profile
--- -- generations: users_crud_own_generations
--- -- characters: users_crud_own_characters
--- -- platform_settings: only_admin_platform_settings
+-- Expected:
+--   characters       | users_crud_own_characters    | ALL
+--   generations      | users_crud_own_generations   | ALL
+--   platform_settings| only_admin_platform_settings | ALL
+--   profiles         | admins_read_all_profiles     | SELECT
+--   profiles         | users_read_own_profile       | SELECT
+--   profiles         | users_update_own_profile     | UPDATE
+--
+-- 2. As authenticated (non-admin) user via anon key — MUST FAIL:
+--    UPDATE profiles SET role = 'admin' WHERE id = auth.uid();
+--    --> ERROR: permission denied for column role
+--
+-- 3. As authenticated user — MUST SUCCEED:
+--    UPDATE profiles SET muapi_key = 'test-key' WHERE id = auth.uid();

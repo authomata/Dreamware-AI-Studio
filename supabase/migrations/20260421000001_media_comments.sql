@@ -127,9 +127,15 @@ CREATE POLICY "own_notifications_update" ON notifications
 -- TRIGGER: notify_on_media_comment
 --
 -- Fires AFTER INSERT on media_comments. Creates a notification row for:
---   1. The file's uploader (if different from the new comment's author).
---   2. Every unique author who commented on the same file previously
---      (excluding the new commenter and the file uploader, who was already notified).
+--   1. The file's uploader (if different from the new comment's author AND
+--      still an active workspace member).
+--   2. Every unique author who commented on the same file previously AND
+--      is still an active workspace member
+--      (excluding the new commenter and the uploader, already handled above).
+--
+-- Both checks JOIN workspace_members directly — is_workspace_member() cannot
+-- be used here because it calls auth.uid(), which in a trigger context is
+-- the function owner (postgres), not the target user.
 --
 -- Runs as SECURITY DEFINER so it can INSERT into notifications without an
 -- authenticated INSERT policy, preventing clients from self-inserting notifications.
@@ -141,13 +147,14 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_file_name     text;
-  v_file_uploader uuid;
+  v_file_name      text;
+  v_file_uploader  uuid;
   v_workspace_slug text;
-  v_link          text;
-  v_notif_title   text;
-  -- Accumulates user_ids that already received a notification for this insert
-  v_notified      uuid[] := ARRAY[NEW.author_id];
+  v_link           text;
+  v_notif_title    text;
+  -- Accumulates user_ids that already received a notification for this insert.
+  -- Seeded with the comment author so they never notify themselves.
+  v_notified       uuid[] := ARRAY[NEW.author_id];
 BEGIN
   -- Gather file and workspace context
   SELECT f.name, f.uploaded_by, w.slug
@@ -159,21 +166,31 @@ BEGIN
   v_link        := '/w/' || v_workspace_slug || '/files/' || NEW.file_id;
   v_notif_title := 'Nuevo comentario en "' || v_file_name || '"';
 
-  -- 1. Notify the file uploader (unless they wrote the comment)
+  -- 1. Notify the file uploader only if:
+  --    a) they are not the comment author, AND
+  --    b) they still have an active row in workspace_members (not removed)
   IF v_file_uploader IS NOT NULL AND v_file_uploader <> NEW.author_id THEN
-    INSERT INTO notifications (user_id, workspace_id, type, title, body, link)
-    VALUES (
-      v_file_uploader,
-      NEW.workspace_id,
-      'comment',
-      v_notif_title,
-      LEFT(NEW.body, 120),
-      v_link
-    );
-    v_notified := v_notified || ARRAY[v_file_uploader];
+    IF EXISTS (
+      SELECT 1 FROM workspace_members
+       WHERE workspace_id = NEW.workspace_id
+         AND user_id      = v_file_uploader
+    ) THEN
+      INSERT INTO notifications (user_id, workspace_id, type, title, body, link)
+      VALUES (
+        v_file_uploader,
+        NEW.workspace_id,
+        'comment',
+        v_notif_title,
+        LEFT(NEW.body, 120),
+        v_link
+      );
+      v_notified := v_notified || ARRAY[v_file_uploader];
+    END IF;
   END IF;
 
-  -- 2. Notify all other previous commenters on the same file
+  -- 2. Notify all other previous commenters on the same file, but ONLY if
+  --    they are still active workspace members.
+  --    JOIN workspace_members filters out users who have been removed.
   INSERT INTO notifications (user_id, workspace_id, type, title, body, link)
   SELECT DISTINCT
     mc.author_id,
@@ -183,9 +200,13 @@ BEGIN
     LEFT(NEW.body, 120),
     v_link
   FROM media_comments mc
-  WHERE mc.file_id    = NEW.file_id
-    AND mc.id         <> NEW.id                   -- exclude the new row itself
-    AND NOT (mc.author_id = ANY(v_notified));     -- exclude already-notified users
+  -- Membership check: recipient must still be in workspace_members
+  JOIN workspace_members wm
+    ON wm.workspace_id = NEW.workspace_id
+   AND wm.user_id      = mc.author_id
+  WHERE mc.file_id = NEW.file_id
+    AND mc.id      <> NEW.id                       -- exclude the new row itself
+    AND NOT (mc.author_id = ANY(v_notified));      -- exclude already-notified users
 
   RETURN NEW;
 END;

@@ -1,0 +1,10 @@
+# Supabase project config
+# See: https://supabase.com/docs/guides/cli/config
+
+[api]
+# Project URL and keys are managed via environment variables.
+# See .env.local for NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
+
+[db]
+# Migrations are located in supabase/migrations/
+# Apply with: supabase db push (requires Supabase CLI linked to project)

@@ -30,7 +30,9 @@ export async function POST(request, { params }) {
   }
   const response = await fetch(targetUrl, { method: 'POST', headers, body });
   const text = await response.text();
-  console.log('PROXY:', targetUrl, '| STATUS:', response.status, '| BODY:', text.slice(0, 200));
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('PROXY:', targetUrl, '| STATUS:', response.status, '| BODY:', text.slice(0, 200));
+  }
   return new Response(text, {
     status: response.status,
     headers: { 'Content-Type': response.headers.get('content-type') || 'application/json' },

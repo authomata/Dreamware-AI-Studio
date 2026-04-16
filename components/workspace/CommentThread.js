@@ -185,8 +185,12 @@ function CommentCard({
 
               {/* Frame.io resolve audit line — who resolved it and when */}
               {comment.resolved_at && comment.resolver && (
-                <p className="text-xs text-zinc-600 mt-1.5 italic">
-                  Resuelto por {comment.resolver.full_name || 'alguien'}{' '}
+                <p className="text-xs text-zinc-400 mt-1.5 italic">
+                  Resuelto por {
+                    comment.resolver.full_name ||
+                    comment.resolver.email     ||
+                    'alguien'
+                  }{' '}
                   {formatDistanceToNow(new Date(comment.resolved_at), {
                     locale: es,
                     addSuffix: true,

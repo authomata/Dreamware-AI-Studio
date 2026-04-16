@@ -5,7 +5,7 @@ su checklist de verificación manual está aprobado por Andrés.
 
 ## [Unreleased]
 
-## Fase 3 — Media review con comentarios (2026-04-16) — ⏳ Pendiente aplicación de migración y verificación manual
+## Fase 3 — Media review con comentarios (2026-04-16) — ✅ Verificada end-to-end en producción (2026-04-16)
 
 ### Creado
 

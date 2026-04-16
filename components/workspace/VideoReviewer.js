@@ -169,7 +169,7 @@ export default function VideoReviewer({
                   ${isFocused
                     ? 'bg-[#d9ff00] border-white scale-125 z-10'
                     : c.resolved_at
-                      ? 'bg-zinc-600 border-zinc-500'
+                      ? 'bg-zinc-400 border-zinc-300 opacity-50'
                       : 'bg-white border-zinc-400'
                   }
                 `}

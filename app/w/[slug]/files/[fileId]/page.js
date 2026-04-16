@@ -77,8 +77,8 @@ export default async function FileDetailPage({ params, searchParams }) {
   const comments = rawComments || [];
 
   // Fetch profiles for all unique authors + resolvers in one batch.
-  // Admin client is required because profiles RLS only exposes own profile to
-  // non-admin users; workspace members cannot directly read each other's profiles.
+  // Admin client used here for the batch fetch — SSR client works too now that
+  // shares_workspace_with() policy is applied, but admin avoids any RLS edge case.
   const authorIds   = comments.map((c) => c.author_id);
   const resolverIds = comments.filter((c) => c.resolved_by).map((c) => c.resolved_by);
   const allProfileIds = [...new Set([...authorIds, ...resolverIds])];
@@ -93,12 +93,31 @@ export default async function FileDetailPage({ params, searchParams }) {
     profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
   }
 
-  // Enrich comments with author + resolver data for server-side rendering
+  // Build email map for all comment participants so we can fall back to email
+  // when full_name is null (common before users fill in their profile).
+  const commentUserIds = [...new Set([...authorIds, ...resolverIds])];
+  let commentEmailMap = {};
+  if (commentUserIds.length > 0) {
+    const { data: { users: commentAuthUsers } } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    commentEmailMap = Object.fromEntries(
+      (commentAuthUsers || [])
+        .filter((u) => commentUserIds.includes(u.id))
+        .map((u) => [u.id, u.email])
+    );
+  }
+
+  // Enrich comments with author + resolver data (profile + email fallback)
   const initialComments = comments.map((c) => ({
     ...c,
-    author:   profileMap[c.author_id]   || { id: c.author_id,   full_name: null, avatar_url: null },
+    author: {
+      ...(profileMap[c.author_id] || { id: c.author_id, full_name: null, avatar_url: null }),
+      email: commentEmailMap[c.author_id] || null,
+    },
     resolver: c.resolved_by
-      ? (profileMap[c.resolved_by] || { id: c.resolved_by, full_name: null, avatar_url: null })
+      ? {
+          ...(profileMap[c.resolved_by] || { id: c.resolved_by, full_name: null, avatar_url: null }),
+          email: commentEmailMap[c.resolved_by] || null,
+        }
       : null,
   }));
 

@@ -48,7 +48,7 @@ export default function MemberAvatar({ member, size = 'md', showTooltip = true }
         className={`
           ${sizeClass}
           rounded-full border-2 border-black flex items-center justify-center
-          overflow-hidden bg-zinc-800 text-white font-semibold flex-shrink-0
+          overflow-hidden bg-zinc-700 text-zinc-100 font-semibold flex-shrink-0
         `}
         title={showTooltip ? `${name} · ${member.role}` : undefined}
       >

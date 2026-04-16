@@ -33,6 +33,20 @@ su checklist de verificación manual está aprobado por Andrés.
 - `app/w/[slug]/layout.js` — añade `<header>` con `NotificationBell workspaceId={workspace.id}` (h-11, border-b, justify-end). Ahora el layout envuelve con sidebar + top-bar + main.
 - `components/workspace/phase-status.js` — sin cambio de LIVE_PHASE (sigue en 2 hasta verificación). Actividad de Fase 3 (`activity`) anotada en el mapa.
 
+### Bug fix: perfiles de co-miembros no visibles (pre-aplicación de migración)
+
+**Bug:** `/w/verant/members` mostraba "0 personas en Verant" aunque la tabla `workspace_members` tenía 2 filas correctas (andres=owner, activmente=editor).
+
+**Causa raíz:** La RLS de `profiles` solo tenía `users_read_own_profile` (`auth.uid() = id`). Al hacer el JOIN embebido `profile:profiles(id, full_name, avatar_url)` con el SSR client en `members/page.js`, PostgREST no podía resolver el path FK `workspace_members.user_id → auth.users → profiles` (no hay FK directo entre workspace_members y profiles). Resultado: query retorna error → `data = null` → `(members || []) = []` → count "0 personas".
+
+**Fix:** Nueva migración `20260421000002_profiles_coworkers_read.sql` — policy `workspace_members_read_coworker_profiles` con self-join sobre `workspace_members` que permite leer perfiles de co-miembros en cualquier workspace compartido. Policy aditiva (no reemplaza `users_read_own_profile` ni `admins_read_all_profiles`).
+
+**Impacto de seguridad:** Solo amplía SELECT. Sin escalación de privilegios: column-level GRANT/REVOKE de Fase 0 sigue bloqueando writes a `role`, `credit_limit`, `credits_used`.
+
+**Candidatos a simplificar post-verificación** (NO cambiados en este commit — pendiente confirmación de Andrés):
+- `app/w/[slug]/files/[fileId]/page.js` línea ~48: `admin.from('profiles').select(...).in('id', allProfileIds)` → puede ser `supabase.from('profiles')...` con SSR client. El `admin` sigue siendo necesario en ese archivo para `auth.admin.getUserById` (email del uploader) y `storage.createSignedUrl` (URL firmada del bucket privado).
+- `app/w/[slug]/members/page.js` línea 20-26: el JOIN embebido `profile:profiles(...)` en la query SSR funcionará sin admin una vez aplicada la policy. El `adminClient` sigue siendo necesario en ese archivo para `auth.admin.listUsers()` (emails de usuarios — requiere service_role).
+
 ### Correcciones pre-aplicación (post-commit inicial)
 
 **Fix: ex-miembros en trigger de notificaciones (8d00eb8)**

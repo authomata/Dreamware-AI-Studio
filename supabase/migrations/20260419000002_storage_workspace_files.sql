@@ -15,30 +15,23 @@
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- VERIFY the path parsing logic before creating policies.
--- storage.foldername is a built-in Supabase Storage function.
--- We cannot call it outside of a storage context, so we validate the
--- ARRAY logic conceptually with a plain SQL DO block instead.
+-- NOTE: storage.foldername() is only callable inside a storage context
+-- and cannot be exercised in a plain migration DO block. The path pattern
+-- contract is therefore documented here and must be verified manually.
+--
+-- To verify path extraction after applying this migration, run in SQL Editor:
+--   SELECT (storage.foldername('a1b2c3d4-0000-0000-0000-000000000001/f9e8d7c6-0000-0000-0000-000000000002-archivo.pdf'))[1];
+--   -- Expected: 'a1b2c3d4-0000-0000-0000-000000000001'
+--
+-- The app invariant enforced in /api/upload/sign is:
+--   storage_path = `${workspace_id}/${file_id}-${sanitizedFilename}`
+--   => (storage.foldername(storage_path))[1] === workspace_id
 -- ---------------------------------------------------------------------------
 DO $$
-DECLARE
-  test_path   text := 'a1b2c3d4-0000-0000-0000-000000000001/f9e8d7c6-0000-0000-0000-000000000002-mi_archivo.pdf';
-  segments    text[];
-  workspace_segment text;
 BEGIN
-  -- Simulate what storage.foldername does: split on '/' and return all but last element
-  -- For a path like 'workspace_id/file_id-name.pdf', foldername returns ARRAY['workspace_id']
-  segments := string_to_array(test_path, '/');
-  workspace_segment := segments[1];  -- first segment is workspace_id
-
-  ASSERT workspace_segment = 'a1b2c3d4-0000-0000-0000-000000000001',
-    format('Path segment extraction failed. Got: %s', workspace_segment);
-
-  -- Verify it looks like a UUID (basic check)
-  ASSERT workspace_segment ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-    format('workspace_id segment is not a UUID: %s', workspace_segment);
-
-  RAISE NOTICE 'Storage path pattern assertions passed. workspace_id extraction: %', workspace_segment;
+  RAISE NOTICE 'Storage policies for workspace-files bucket created.';
+  RAISE NOTICE 'To verify path extraction, run: SELECT (storage.foldername(''<ws_id>/<file_id>-name.pdf''))[1];';
+  RAISE NOTICE 'Expected: the workspace_id UUID.';
 END;
 $$;
 

@@ -11,10 +11,10 @@ su checklist de verificación manual está aprobado por Andrés.
 
 **Migraciones (pendientes de aplicar por Andrés):**
 - `supabase/migrations/20260419000001_files_folders.sql` — tablas folders + files, columna storage_used_bytes en workspaces, trigger storage tracking, trigger default folders, backfill de folders para workspaces existentes, RLS para ambas tablas.
-- `supabase/migrations/20260419000002_storage_workspace_files.sql` — 4 policies en storage.objects para bucket workspace-files (SELECT viewer+, INSERT/UPDATE/DELETE editor+). DO block valida el pattern de path `{workspace_id}/{file_id}-{name}`.
+- `supabase/migrations/20260419000002_storage_workspace_files.sql` — 4 policies en storage.objects para bucket workspace-files (SELECT viewer+, INSERT/UPDATE/DELETE editor+). DO block NOTICE-only documenta cómo verificar el path pattern manualmente.
 
 **Endpoint:**
-- `app/api/upload/sign/route.js` — POST con `{workspace_id, folder_id, filename, mime_type, size}`. Validaciones en orden: auth → membership editor+ → MIME whitelist/blocklist → size ≤ MAX_BYTES → folder_id scope. Genera signed upload URL via admin client.
+- `app/api/upload/sign/route.js` — POST con `{workspace_id, folder_id, filename, mime_type, size}`. Validaciones en orden: auth → `is_workspace_member()` RPC editor+ → MIME blocklist → MIME allowlist → extensión/MIME consistency → size ≤ MAX_BYTES → folder_id scope. Genera signed upload URL via admin client.
 
 **Server Actions:**
 - `app/w/[slug]/files/actions.js` — createFolder, renameFolder, deleteFolder, registerUploadedFile (con verificación Storage.list), renameFile, moveFile, deleteFile (borra Storage + DB), toggleReviewAsset, getSignedDownloadUrl.
@@ -48,6 +48,23 @@ su checklist de verificación manual está aprobado por Andrés.
    - Settings → Environment Variables → Production
 
 3. **Push a producción** (código ya commiteado, falta push)
+
+### Correcciones de seguridad (post-commit inicial, pre-aplicación en producción)
+
+**Ajuste 1 — DO block falso en storage migration (CORRECTNESS)**
+- El bloque DO original usaba `string_to_array()` para "simular" `storage.foldername()` en contexto de migración. La función `string_to_array` divide por separador simple; `foldername` tiene semántica diferente (segmento 1 de path). Resultado: assertion falsa que daba false confidence.
+- Fix: reemplazado por bloque NOTICE-only que documenta cómo verificar manualmente en SQL Editor tras aplicar la migración.
+
+**Ajuste 2 — Verificación de membresía duplicada en route.js (SECURITY)**
+- El endpoint `POST /api/upload/sign` reimplementaba manualmente la lógica de `is_workspace_member()` (~15 líneas: query directa a `workspace_members` + fallback de platform admin). Esta duplicación violaba el principio de "single source of truth" y podía desincronizarse con la SQL function.
+- Fix: reemplazado por `supabase.rpc('is_workspace_member', { wid: workspace_id, min_role: 'editor' })`. Una línea, una fuente de verdad.
+
+**Ajuste 3 — Anti-spoofing de extensión/MIME (SECURITY)**
+- Un cliente malicioso podía declarar `mime_type="image/png"` pero subir un archivo `malware.exe`. La validación de MIME allowlist no detectaba esto porque opera sobre el campo declarado, no sobre el binario.
+- Fix: agregado `MIME_TO_EXTS` map (26 tipos) y `extensionMatchesMime(filename, mime)` que valida que la extensión del filename sea consistente con el MIME declarado. Archivos sin extensión son rechazados. Error 400 con mensaje claro.
+
+**Ajuste 4 — `.maybeSingle()` en query de membresía (N/A — resuelto por Ajuste 2)**
+- Identificado un posible `.single()` → `.maybeSingle()` en la query manual de membresía. Quedó obsoleto al eliminar esa query por completo en Ajuste 2.
 
 ### Notas de diseño / deuda conocida
 - `deleteFolder()`: archivos dentro quedan con folder_id=null (no se borran de Storage). Deuda anotada, requiere job de limpieza futuro.

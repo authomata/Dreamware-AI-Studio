@@ -3,6 +3,61 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { randomUUID } from 'crypto';
 
 // ---------------------------------------------------------------------------
+// MIME → allowed file extensions map.
+// Used to detect spoofed MIME types (e.g. "image/png" declared but file is
+// actually "malware.exe"). Extension must match the declared MIME.
+// ---------------------------------------------------------------------------
+const MIME_TO_EXTS = {
+  'image/jpeg':       ['jpg', 'jpeg'],
+  'image/jpg':        ['jpg', 'jpeg'],
+  'image/png':        ['png'],
+  'image/gif':        ['gif'],
+  'image/webp':       ['webp'],
+  'image/svg+xml':    ['svg'],
+  'image/heic':       ['heic'],
+  'image/heif':       ['heif'],
+  'video/mp4':        ['mp4', 'm4v'],
+  'video/quicktime':  ['mov', 'qt'],
+  'video/webm':       ['webm'],
+  'video/x-matroska': ['mkv'],
+  'audio/mpeg':       ['mp3'],
+  'audio/wav':        ['wav'],
+  'audio/ogg':        ['ogg', 'oga'],
+  'audio/webm':       ['weba'],
+  'audio/aac':        ['aac'],
+  'audio/x-m4a':      ['m4a'],
+  'audio/flac':       ['flac'],
+  'audio/mp4':        ['m4a', 'mp4'],
+  'application/pdf':  ['pdf'],
+  'application/zip':  ['zip'],
+  'text/plain':       ['txt'],
+  'text/markdown':    ['md', 'markdown'],
+  'text/csv':         ['csv'],
+  'application/msword':       ['doc'],
+  'application/vnd.ms-excel': ['xls'],
+  'application/vnd.ms-powerpoint': ['ppt'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':   ['docx'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':         ['xlsx'],
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['pptx'],
+};
+
+/**
+ * Returns true if the filename's extension is valid for the given MIME type.
+ * Files without an extension are rejected (no extension = ambiguous = unsafe).
+ *
+ * @param {string} filename
+ * @param {string} mime  - normalized (lowercase) MIME type
+ * @returns {boolean}
+ */
+function extensionMatchesMime(filename, mime) {
+  const match = filename.toLowerCase().match(/\.([a-z0-9]+)$/);
+  if (!match) return false; // no extension → reject
+  const ext     = match[1];
+  const allowed = MIME_TO_EXTS[mime];
+  return Array.isArray(allowed) && allowed.includes(ext);
+}
+
+// ---------------------------------------------------------------------------
 // MIME whitelist and blacklist
 // Allowlist: explicitly permitted types
 // Blocklist: explicitly rejected (executable/dangerous)
@@ -77,8 +132,8 @@ function sanitizeFilename(filename) {
 //
 // Validation order:
 //   1. Auth — valid session
-//   2. Membership — editor+ in the workspace
-//   3. MIME — allowlist / blocklist
+//   2. Membership — editor+ via is_workspace_member() RPC (single source of truth)
+//   3. MIME — blocklist → allowlist → extension/MIME consistency
 //   4. Size — <= MAX_BYTES (NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB * 1024 * 1024)
 //   5. folder_id — belongs to workspace (if provided)
 //
@@ -116,30 +171,24 @@ export async function POST(request) {
     );
   }
 
-  // 2. Membership — editor+ in the workspace
-  // We call is_workspace_member via a raw SQL RPC or just query workspace_members.
-  // Simplest: query workspace_members directly (anon client respects RLS + is_workspace_member is SECURITY DEFINER)
-  const { data: member } = await supabase
-    .from('workspace_members')
-    .select('role')
-    .eq('workspace_id', workspace_id)
-    .eq('user_id', user.id)
-    .single();
+  // 2. Membership — editor+ in the workspace.
+  // Single source of truth: is_workspace_member() SECURITY DEFINER function in Supabase.
+  // It already handles the is_admin() shortcut for platform admins internally,
+  // so no separate admin fallback needed here.
+  const { data: hasPermission, error: rpcError } = await supabase.rpc(
+    'is_workspace_member',
+    { wid: workspace_id, min_role: 'editor' }
+  );
 
-  // Platform admins don't need a membership row — check profile role as fallback
-  let isEditor = false;
-  if (member) {
-    isEditor = ['editor', 'admin', 'owner'].includes(member.role);
-  } else {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-    isEditor = profile?.role === 'admin';
+  if (rpcError) {
+    console.error('[upload/sign] is_workspace_member RPC error:', rpcError.message);
+    return Response.json(
+      { error: 'Error verificando permisos.' },
+      { status: 500 }
+    );
   }
 
-  if (!isEditor) {
+  if (!hasPermission) {
     return Response.json(
       { error: 'No tienes permiso para subir archivos a este workspace.' },
       { status: 403 }
@@ -160,6 +209,16 @@ export async function POST(request) {
     return Response.json(
       { error: 'Tipo de archivo no soportado. Contacta a tu administrador si necesitas este formato.' },
       { status: 415 }
+    );
+  }
+
+  // 3b. Extension / MIME consistency check.
+  // Prevents spoofing attacks where a malicious file is sent with a trusted
+  // MIME type (e.g. mime_type="image/png" but filename="malware.exe").
+  if (!extensionMatchesMime(filename, normalizedMime)) {
+    return Response.json(
+      { error: 'La extensión del archivo no coincide con su tipo declarado.' },
+      { status: 400 }
     );
   }
 

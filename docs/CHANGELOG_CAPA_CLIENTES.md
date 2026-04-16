@@ -5,7 +5,7 @@ su checklist de verificación manual está aprobado por Andrés.
 
 ## [Unreleased]
 
-## Fase 2 — Archivos y folders con Supabase Storage (2026-04-16) — ⏳ Pendiente aplicación de migraciones y verificación manual
+## Fase 2 — Archivos y folders con Supabase Storage (2026-04-16) — ✅ Verificada end-to-end en producción (2026-04-16)
 
 ### Creado
 
@@ -36,18 +36,16 @@ su checklist de verificación manual está aprobado por Andrés.
 - `components/workspace/WorkspaceSidebar.js` — `LIVE_PHASE = 2` activa el link "Archivos".
 - `.env.local` — agregado `NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB=50`.
 
-### ⚠️ Acciones pendientes antes de verificar
+### Verificación manual (aprobada por Andrés — 2026-04-16)
 
-1. **Aplicar migraciones en Supabase Dashboard (SQL Editor):**
-   - `20260419000001_files_folders.sql` primero
-   - `20260419000002_storage_workspace_files.sql` segundo
-   - Revisar ambas ANTES de aplicar (especialmente storage policies)
-
-2. **Agregar variable en Vercel:**
-   - `NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB = 50`
-   - Settings → Environment Variables → Production
-
-3. **Push a producción** (código ya commiteado, falta push)
+- 6 queries de verificación OK en Supabase Dashboard
+- Default folders creados para Verant (Brand Assets, Documentos, Entregables, Reuniones)
+- Upload funciona: PNG, JPEG, MP4, PDF, ZIP — progress bar visible en uploads grandes
+- Previews correctos: imagen inline, video con player, PDF en iframe, ZIP con ícono
+- Archivo 60 MB rechazado ANTES de subir con mensaje claro
+- `storage_used_bytes` tracking funciona (17.8 MB reportados correctamente)
+- Permisos de Editor: sube archivos, ve todo, no ve Config
+- Deploy en Vercel con env var `NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB=50` confirmada
 
 ### Correcciones de seguridad (post-commit inicial, pre-aplicación en producción)
 

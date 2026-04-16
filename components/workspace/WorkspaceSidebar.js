@@ -10,6 +10,7 @@ import {
   Users,
   Settings,
 } from 'lucide-react';
+import { LIVE_PHASE } from '@/components/workspace/phase-status';
 
 const NAV_ITEMS = [
   { label: 'Dashboard',  href: '',         icon: LayoutDashboard, phase: 1 },
@@ -33,7 +34,6 @@ export default function WorkspaceSidebar({ workspace }) {
 
   const brandBg      = workspace.brand_color || '#d9ff00';
   const brandInitial = workspace.name.charAt(0).toUpperCase();
-  const LIVE_PHASE   = 2; // increment as phases go live
 
   return (
     <aside className="

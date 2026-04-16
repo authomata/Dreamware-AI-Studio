@@ -5,6 +5,59 @@ su checklist de verificación manual está aprobado por Andrés.
 
 ## [Unreleased]
 
+## Fase 4 — Documentos WYSIWYG con Tiptap (2026-04-16) — ⏳ Pendiente aplicación de migración y verificación manual
+
+### Creado
+
+**Dependencias instaladas:**
+- `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-placeholder`, `@tiptap/extension-mention`, `@tiptap/extension-link`, `@tiptap/extension-task-list`, `@tiptap/extension-task-item`, `@tiptap/suggestion`
+
+**Migración (pendiente de aplicar por Andrés):**
+- `supabase/migrations/20260423000001_documents.sql` — tabla `documents` (content jsonb Tiptap, created_by/updated_by, updated_at auto-bump trigger) + tabla `document_comments` (selection_from/to/text ProseMirror positions, resolved_by Frame.io, parent_id threading). RLS 4 policies en cada tabla (viewer+ SELECT, editor+ INSERT/UPDATE, author-o-admin DELETE). Triggers SECURITY DEFINER: `notify_on_document_comment` + `notify_on_document_comment_resolved` con email fallback COALESCE(full_name, email, 'Alguien'). Realtime en document_comments. Assertions + verification queries al final.
+
+**Server Actions:**
+- `app/w/[slug]/docs/actions.js` — `createDocument`, `updateDocument` (llamado por autosave 2s debounce), `deleteDocument` (autor o admin), `createDocumentComment` (commenter+, con selection_from/to/text), `resolveDocumentComment` (editor+, Frame.io), `unresolveDocumentComment`, `deleteDocumentComment` (autor o admin).
+
+**Componentes nuevos:**
+- `components/workspace/DocumentEditor.js` — editor Tiptap con StarterKit, Placeholder, Link, TaskList/TaskItem, Mention (@autocomplete con MentionList popup via tippy.js), CommentMark extension custom (mark `span[data-comment-id]` que persiste en JSON del doc). Autosave debounce 2s, indicador "Guardando… / Guardado / Error". Título editable como input separado (encima del editor). Detección de selección de texto → habilita botón "Comentar" en toolbar. ProseMirror CSS inyectado inline (prose dark theme).
+- `components/workspace/DocumentToolbar.js` — 14 botones de formato (negrita, itálica, tachado, H1/H2/H3, listas, task list, enlace, código inline/bloque, cita, separador) + botón "Comentar" que se activa solo cuando hay selección de texto.
+- `components/workspace/DocumentCommentSidebar.js` — panel derecho de comentarios para documentos. Muestra `selection_text` como bloque de cita sobre cada comentario. Mismo patrón Frame.io que CommentThread (resolve/reabrir, auditoría "Resuelto por X", threading 1 nivel). Compositor de comentarios integrado al pie del panel (se activa al tener pending comment o reply to).
+- `components/workspace/MentionList.js` — popup de autocomplete de miembros al escribir @ en el editor. Navegación con teclado (↑↓ Enter Escape). Renderizado via `ReactRenderer` + tippy.
+
+**Client component:**
+- `app/w/[slug]/docs/[docId]/DocumentEditorPage.js` — maneja estado compartido entre DocumentEditor y DocumentCommentSidebar. Realtime subscription en document_comments por document_id. Aplicación de CommentMark al editor tras crear comentario (setTextSelection + setMark + updateDocument para persistir). Caché local de perfiles para enriquecer eventos realtime.
+
+**Rutas:**
+- `app/w/[slug]/docs/page.js` — lista de documentos del workspace (grid, ordenado por updated_at desc). Botón "Nuevo documento" para editor+.
+- `app/w/[slug]/docs/new/page.js` — server redirect: crea doc vacío y redirige a `/w/[slug]/docs/[docId]`.
+- `app/w/[slug]/docs/[docId]/page.js` — SSR: fetch doc + comentarios enriquecidos (profiles + emails) + miembros del workspace (two-step, mismo fix PGRST200) → `DocumentEditorPage`.
+
+### Modificado
+- `components/workspace/phase-status.js` — `LIVE_PHASE = 4`, `docs.href = (slug) => /w/${slug}/docs`. El sidebar y dashboard habilitan "Docs" automáticamente.
+
+### ⚠️ Acciones pendientes antes de verificar
+
+1. **Aplicar migración en Supabase Dashboard (SQL Editor):**
+   - `supabase/migrations/20260423000001_documents.sql`
+   - Revisar assertions en el DO block — deben pasar sin ERROR
+
+2. **Verificar Realtime en Supabase Dashboard:**
+   - Settings → Realtime → `supabase_realtime` → confirmar que `document_comments` aparece
+
+3. **Verificación E2E:**
+   - Crear documento desde "Nuevo documento" → redirige al editor
+   - Escribir título + contenido → autosave "Guardando… → Guardado"
+   - Formato: bold, H1, bullet list, task list, código, cita
+   - @ para mencionar miembro → popup aparece → seleccionar → mention insertada
+   - Seleccionar texto → "Comentar" se activa → comentar → pin aparece en el texto
+   - Segundo usuario crea comentario → notificación realtime al creador del doc
+   - Resolver comentario → auditoría "Resuelto por X" visible → notificación al autor
+   - Reabrir comentario funciona
+   - Viewer: puede leer, no puede editar ni comentar (toolbar deshabilitado)
+   - Eliminar documento (autor o admin) → confirmación → redirige a lista
+
+---
+
 ## Fase 3 — Media review con comentarios (2026-04-16) — ✅ Verificada end-to-end en producción (2026-04-16)
 
 ### Creado

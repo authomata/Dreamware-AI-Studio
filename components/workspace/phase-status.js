@@ -7,7 +7,7 @@
  */
 
 /** The highest phase number currently deployed and verified in production. */
-export const LIVE_PHASE = 2;
+export const LIVE_PHASE = 4;
 
 /**
  * Feature phase configuration per workspace module.
@@ -20,7 +20,7 @@ export const LIVE_PHASE = 2;
 export const PHASES = {
   files:    { phase: 2, label: 'Archivos',   href: (slug) => `/w/${slug}/files` },
   activity: { phase: 3, label: 'Actividad',  href: null },
-  docs:     { phase: 4, label: 'Docs',       href: null },
+  docs:     { phase: 4, label: 'Docs',       href: (slug) => `/w/${slug}/docs` },
   chat:     { phase: 5, label: 'Chat',       href: null },
 };
 

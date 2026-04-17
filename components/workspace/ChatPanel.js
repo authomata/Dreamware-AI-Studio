@@ -103,56 +103,75 @@ export default function ChatPanel({
   }, [atBottom, messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------
-  // Supabase Realtime — subscribe to new messages
+  // Supabase Realtime — subscribe to new messages.
+  //
+  // Must call getUser() FIRST so the session cookie is loaded into the client's
+  // internal auth state before the WebSocket handshake. If we subscribe
+  // synchronously, the connection goes out with the anon key and RLS blocks
+  // every row delivery (same fix pattern as NotificationBell).
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const channel = supabase
-      .channel(`chat:${workspace.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event:  '*',
-          schema: 'public',
-          table:  'chat_messages',
-          filter: `workspace_id=eq.${workspace.id}`,
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const row = payload.new;
-            const cached = profileCache.current[row.author_id];
-            const enriched = {
-              ...row,
-              author:   cached || { id: row.author_id, full_name: null, avatar_url: null, email: null },
-              reply_to: null,
-            };
-            setMessages(prev => {
-              // UPSERT: replace if exists (optimistic), append if new
-              const idx = prev.findIndex(m => m.id === row.id);
-              if (idx !== -1) {
-                const next = [...prev];
-                next[idx] = { ...prev[idx], ...enriched };
-                return next;
-              }
-              return [...prev, enriched];
-            });
-          }
+    const supabase = createClient();
+    let channel    = null;
+    let cancelled  = false;
 
-          if (payload.eventType === 'UPDATE') {
-            const row = payload.new;
-            setMessages(prev => prev.map(m => m.id === row.id
-              ? { ...m, body: row.body, edited_at: row.edited_at }
-              : m
-            ));
-          }
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user || cancelled) return;
 
-          if (payload.eventType === 'DELETE') {
-            setMessages(prev => prev.filter(m => m.id !== payload.old.id));
-          }
-        }
-      )
-      .subscribe();
+      channel = supabase
+        .channel(`chat:${workspace.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event:  '*',
+            schema: 'public',
+            table:  'chat_messages',
+            filter: `workspace_id=eq.${workspace.id}`,
+          },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const row     = payload.new;
+              const cached  = profileCache.current[row.author_id];
+              const enriched = {
+                ...row,
+                author:   cached || { id: row.author_id, full_name: null, avatar_url: null, email: null },
+                reply_to: null,
+              };
+              setMessages(prev => {
+                // UPSERT: replace if already optimistically added
+                const idx = prev.findIndex(m => m.id === row.id);
+                if (idx !== -1) {
+                  const next = [...prev];
+                  next[idx] = { ...prev[idx], ...enriched };
+                  return next;
+                }
+                return [...prev, enriched];
+              });
+            }
 
-    return () => { supabase.removeChannel(channel); };
+            if (payload.eventType === 'UPDATE') {
+              const row = payload.new;
+              setMessages(prev => prev.map(m =>
+                m.id === row.id ? { ...m, body: row.body, edited_at: row.edited_at } : m
+              ));
+            }
+
+            if (payload.eventType === 'DELETE') {
+              setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[ChatPanel] Realtime status:', status);
+          }
+        });
+    });
+
+    return () => {
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [workspace.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------

@@ -7,6 +7,10 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { assertWorkspaceRole } from '@/lib/workspace/assertWorkspaceRole';
 import { generateUniqueSlug } from '@/lib/workspace/generateUniqueSlug';
+import { sendEmail } from '@/lib/emails/resend';
+import { buildInvitationEmail } from '@/lib/emails/InvitationEmail';
+
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://lab.dreamware.studio';
 
 // ---------------------------------------------------------------------------
 // Workspace CRUD
@@ -115,8 +119,35 @@ export async function inviteMember(workspaceId, email, role, workspaceSlug) {
 
   if (error) throw new Error(error.message);
 
-  // TODO (Phase 6): send invitation email via Resend
-  // await sendInvitationEmail({ email, token, workspaceName, inviterName });
+  // Phase 6: Send invitation email via Resend.
+  // If Resend is not configured or fails, the invitation row still exists
+  // and the admin can share the link manually.
+  try {
+    const { data: ws } = await admin
+      .from('workspaces')
+      .select('name, slug')
+      .eq('id', workspaceId)
+      .single();
+
+    const { data: inviterProfile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single();
+
+    const inviteLink = `${BASE_URL}/invitations/${token}`;
+    const emailPayload = buildInvitationEmail({
+      recipientEmail: email,
+      workspaceName:  ws?.name || workspaceSlug,
+      role,
+      inviterName:    inviterProfile?.full_name || null,
+      inviteLink,
+    });
+
+    await sendEmail({ to: email, ...emailPayload });
+  } catch (emailErr) {
+    console.error('[inviteMember] Email send failed (non-fatal):', emailErr);
+  }
 
   revalidatePath(`/w/${workspaceSlug}/members`);
   return { success: true, token };

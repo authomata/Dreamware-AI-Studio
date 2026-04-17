@@ -129,9 +129,9 @@ export default function NewClientForm() {
           Contacto principal (owner)
         </h2>
         <p className="text-xs text-zinc-600">
-          Si el email ya tiene cuenta en DreamWare, se le agrega directamente.
-          Si no, se crea una invitación con link de acceso.
-          {/* TODO (Phase 6): el link se envía por email automáticamente via Resend */}
+          Si el email ya tiene cuenta en DreamWare, se le agrega directamente y recibe
+          un email de bienvenida. Si no, se crea una invitación y se envía por email
+          automáticamente.
         </p>
 
         <div>
@@ -164,12 +164,6 @@ export default function NewClientForm() {
           {error}
         </div>
       )}
-
-      {/* Note about email sending */}
-      <div className="text-xs text-zinc-600 border border-zinc-900 rounded-lg p-3">
-        📬 El envío de email de invitación se activará en la Fase 6 (Resend). Por ahora,
-        comparte el link de invitación manualmente desde el panel de miembros.
-      </div>
 
       <div className="flex gap-3">
         <a

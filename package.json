@@ -77,6 +77,7 @@
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.4.1",
     "react-markdown": "^10.1.0",
+    "resend": "^6.12.0",
     "studio": "*",
     "tippy.js": "^6.3.7"
   },

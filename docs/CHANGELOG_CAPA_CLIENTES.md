@@ -5,7 +5,51 @@ su checklist de verificación manual está aprobado por Andrés.
 
 ## [Unreleased]
 
-## Fase 5 — Chat del workspace (2026-04-16) — ⏳ Pendiente aplicación de migración y verificación manual
+## Fase 6 — Emails de invitación con Resend (2026-04-16) — ✅ Código completo · Activa al configurar RESEND_API_KEY
+
+### Creado
+
+**Dependencias instaladas:**
+- `resend@^6.12.0` — SDK oficial de Resend para envío de emails transaccionales
+
+**Templates de email (`lib/emails/`):**
+- `InvitationEmail.js` — `buildInvitationEmail({ recipientEmail, workspaceName, role, inviterName, inviteLink })` → `{ subject, html, text }`. Fondo oscuro (#0e0e0e/#141414), tipografía Space Grotesk (Google Fonts import), botón CTA amarillo neón (#d9ff00), texto en castellano chileno con tuteo. Link de aceptación a `https://lab.dreamware.studio/invitations/{token}`. Footer con aviso de expiración 7 días y restricción por email.
+- `WelcomeEmail.js` — `buildWelcomeEmail({ recipientName, recipientEmail, workspaceName, workspaceSlug, role, inviterName })` → `{ subject, html, text }`. Para usuarios existentes agregados directamente a un workspace. Link directo a `/w/{slug}` (no requiere crear cuenta). Mismo diseño que InvitationEmail.
+- `resend.js` — `sendEmail({ to, subject, html, text })`. Degrada silenciosamente si `RESEND_API_KEY` no está configurado (log de warning, retorna `null`). Try/catch anti-crash para errores de red o API. `FROM_EMAIL` configurable por `RESEND_FROM_EMAIL` (default `notificaciones@dreamware.cl`).
+
+**Route handler:**
+- `app/api/invitations/send/route.js` — `POST /api/invitations/send`. Body: `{ workspace_id, workspace_name, workspace_slug, email, role, token, inviter_name?, type? }`. `type = 'invitation'` (default) usa `buildInvitationEmail`; `type = 'welcome'` usa `buildWelcomeEmail`. Responde `{ sent: true, id }` o `{ sent: false, reason }` — nunca falla en 5xx por Resend.
+
+### Modificado
+- `app/w/[slug]/actions.js` — `inviteMember()`: tras crear la fila en `workspace_invitations`, llama `buildInvitationEmail` + `sendEmail` en bloque `try/catch` no-fatal. Fetch de workspace name y perfil del invitador incluidos para personalizar el email.
+- `app/admin/clients/actions.js` — `createClientAndOwner()`: si el usuario existe → `buildWelcomeEmail` + `sendEmail`. Si no existe → `buildInvitationEmail` + `sendEmail`. Ambos en `try/catch` no-fatal — la invitación se crea igual; el admin puede copiar el link desde el panel de miembros.
+- `app/admin/clients/new/NewClientForm.js` — eliminada nota "El envío de email se activará en Fase 6". Descripción actualizada: "...se envía por email automáticamente". Removido comentario `TODO (Phase 6)`.
+- `.env.example` — agregadas variables `RESEND_API_KEY` y `RESEND_FROM_EMAIL`.
+
+### Variables de entorno nuevas
+```env
+# Resend — transactional emails
+RESEND_API_KEY=re_...               # get from resend.com/api-keys
+RESEND_FROM_EMAIL=notificaciones@dreamware.cl  # must be a verified domain in Resend
+NEXT_PUBLIC_APP_URL=https://lab.dreamware.studio  # base URL for invitation links
+```
+
+### Notas de implementación
+- **Degradación silenciosa**: si `RESEND_API_KEY` no está en el entorno, el sistema funciona igual que antes — la invitación se crea en la DB y el admin puede copiar el link manualmente desde el panel de miembros.
+- **Seguridad**: ningún secret pasa al cliente. `RESEND_API_KEY` y `RESEND_FROM_EMAIL` son server-only.
+- **No hay nueva migración**: Fase 6 es solo código (templates, route handler, conexión con server actions existentes).
+
+### ⚠️ Para activar el envío de emails
+1. Crear cuenta en [resend.com](https://resend.com)
+2. Verificar el dominio `dreamware.cl` (DNS → TXT/MX)
+3. Crear API key en Resend Dashboard → API Keys
+4. En Vercel: `RESEND_API_KEY=re_...` y `RESEND_FROM_EMAIL=notificaciones@dreamware.cl`
+5. En `.env.local` local: mismas variables
+6. Verificar: crear cliente desde `/admin/clients/new` → revisar inbox del email de contacto
+
+---
+
+## Fase 5 — Chat del workspace (2026-04-16) — ✅ Verificada end-to-end
 
 ### Creado
 
@@ -40,31 +84,9 @@ su checklist de verificación manual está aprobado por Andrés.
 - `app/w/[slug]/layout.js` — añade cálculo de `chatUnread` + prop a sidebar.
 - `components/workspace/WorkspaceSidebar.js` — acepta y muestra badge de no leídos.
 
-### ⚠️ Acciones pendientes antes de verificar
-
-1. **Aplicar migración en Supabase Dashboard (SQL Editor):**
-   - `supabase/migrations/20260425000001_chat.sql`
-   - Revisar assertions en el DO block — deben pasar sin ERROR
-
-2. **Verificar Realtime en Supabase Dashboard:**
-   - Settings → Realtime → Publicaciones → `supabase_realtime`
-   - Confirmar que `chat_messages` aparece
-
-3. **Verificación E2E:**
-   - Navegar a `/w/[slug]/chat` — lista vacía, compositor visible
-   - Escribir mensaje → enter → aparece inmediatamente (optimista)
-   - Segundo usuario abre chat → ve el mensaje en tiempo real (Realtime)
-   - @ para mencionar → popup aparece con miembros → seleccionar → `@uuid` insertado en body → mensaje enviado → trigger notifica al mencionado
-   - Responder a mensaje → banner reply visible → enviar → queda anidado bajo el original
-   - Editar mensaje (dentro de 15 min) → (editado) visible
-   - Editar después de 15 min → error esperado
-   - Eliminar mensaje → desaparece en tiempo real para todos
-   - Adjuntar imagen → preview inline
-   - Adjuntar PDF → link de descarga
-   - Scroll up → carga página anterior (IntersectionObserver)
-   - Badge en sidebar: segundo usuario no leído → badge numérico
-   - Badge desaparece al hacer scroll to bottom (markChatRead)
-   - Viewer: ve mensajes, no ve compositor (solo texto informativo)
+### Correcciones post-commit
+- **Runtime crash** (`Cannot read properties of undefined (reading 'profile')`): `ChatMessage.js` pasaba `profile={...}` a `MemberAvatar` que espera `member={...}`. Fix: prop shape corregido, `MemberAvatar` protegido con `{member.role && ...}` para dot nulo.
+- **Realtime no llegaba a otros clientes** (`commit 0a20639`): la suscripción `postgres_changes` salía sincrónicamente antes de que `getUser()` resolviera → WebSocket se conectaba como anon → RLS bloqueaba todas las filas. Fix: mover `channel = supabase.channel(...).subscribe()` dentro del `.then()` de `getUser()`, mismo patrón que `NotificationBell.js`.
 
 ---
 
@@ -388,3 +410,82 @@ Ninguna nueva (lucide-react y date-fns ya instalados en Fase 0).
 1. `20260416000001_rls_existing_tables.sql` — RLS audit + column-level GRANT/REVOKE en profiles
 2. `20260416000002_profiles_name_avatar.sql` — agrega columnas + extiende GRANT
 (La migración 00000000000000 es solo documentación — las tablas ya existen)
+
+---
+
+## Checklist pre-lanzamiento (onboarding de clientes reales)
+
+Antes de onboardear el primer cliente real, verificar:
+
+### Infraestructura
+- [ ] Migraciones aplicadas en Supabase producción (en orden):
+  - [ ] `20260416000001_rls_existing_tables.sql`
+  - [ ] `20260416000002_profiles_name_avatar.sql`
+  - [ ] `20260417000001_workspaces_core.sql`
+  - [ ] `20260420000001_files.sql`
+  - [ ] `20260422000001_notifications.sql`
+  - [ ] `20260423000001_documents.sql`
+  - [ ] `20260425000001_chat.sql`
+- [ ] Storage bucket `workspace-files` creado con política de acceso correcta
+- [ ] Realtime habilitado para `chat_messages` y `document_comments` en Supabase Dashboard
+- [ ] `chat_messages` aparece en `supabase_realtime` publication
+
+### Variables de entorno en Vercel
+- [ ] `NEXT_PUBLIC_SUPABASE_URL`
+- [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- [ ] `SUPABASE_SERVICE_ROLE_KEY`
+- [ ] `RESEND_API_KEY` (o aceptar envío manual de links)
+- [ ] `RESEND_FROM_EMAIL=notificaciones@dreamware.cl`
+- [ ] `NEXT_PUBLIC_APP_URL=https://lab.dreamware.studio`
+
+### Email
+- [ ] Dominio `dreamware.cl` verificado en Resend Dashboard (registros DNS)
+- [ ] Email de prueba enviado y recibido desde `notificaciones@dreamware.cl`
+- [ ] Template de invitación revisado visualmente
+
+### Seguridad
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` NO expuesta en código cliente
+- [ ] RLS habilitado en todas las tablas (verificar con `SELECT relname FROM pg_class WHERE relrowsecurity = true`)
+- [ ] Platform admin tiene cuenta en `auth.users` con `profiles.role = 'admin'`
+
+### Flujo E2E de onboarding
+- [ ] Crear cliente desde `/admin/clients/new`
+- [ ] Email de invitación llega al contacto (o copiar link manualmente si Resend no está)
+- [ ] El invitado acepta la invitación → crea cuenta → queda como owner del workspace
+- [ ] Owner puede invitar a otros miembros desde `/w/[slug]/members`
+- [ ] Todos los módulos activos (archivos, docs, chat) funcionan para el cliente
+
+---
+
+## Deudas técnicas consolidadas
+
+### 🔴 Alta prioridad (afecta funcionalidad visible)
+
+**1. @mention attrs no persisten en Tiptap v3**
+- **Archivo**: `components/workspace/DocumentEditor.js`
+- **Síntoma**: Al insertar `@nombre` en el editor, otros clientes ven `@null` o `@` vacío al recargar. El JSON guardado en la DB no contiene `id`/`label` en los nodos `mention`.
+- **Causa**: `Mention.extend({ addAttributes(){} })` en Tiptap v3 no wireuea correctamente los attrs al schema de ProseMirror. 3 iteraciones de fix fallidas.
+- **Workaround**: No hay — la feature no funciona cross-client.
+- **Próximo paso**: Investigar `@tiptap/extension-mention` v3 changelog; posible solución es definir la extensión en un archivo separado con `Node.create()` completo en vez de `Mention.extend()`.
+
+### 🟡 Media prioridad (UX degradado, no bloqueante)
+
+**2. Ruta `/invitations/{token}` no implementada**
+- **Síntoma**: Los links de invitación en los emails apuntan a `https://lab.dreamware.studio/invitations/{token}` pero esa ruta no existe. El usuario llega a un 404.
+- **Impacto**: La invitación se crea en la DB y el link funciona para verificación manual, pero el flujo de onboarding automatizado está incompleto.
+- **Solución**: Crear `app/invitations/[token]/page.js` — verifica token, si usuario logueado acepta y redirige al workspace; si no, redirige a login con `?next=/invitations/{token}`.
+
+**3. Supabase Storage bucket para adjuntos de chat**
+- **Síntoma**: `getChatSignedUploadUrl` asume que existe el bucket `workspace-files`. Si no existe, el upload falla con error genérico.
+- **Solución**: Crear el bucket en Supabase Dashboard → Storage → New bucket: `workspace-files`, privado, 50MB limit.
+
+### 🟢 Baja prioridad (pulido, no funcional)
+
+**4. `listUsers` pagination en `createClientAndOwner`**
+- `admin.auth.admin.listUsers({ perPage: 1000 })` — si hay más de 1000 usuarios, puede no encontrar el email. Reemplazar con búsqueda por email directa cuando Supabase Auth Admin API lo soporte mejor.
+
+**5. Date-fns locale en ChatMessage**
+- `formatDistanceToNow` usa locale `es` (español de España). Podría usar locale `es-CL` para mayor consistencia con el resto de la UI en castellano chileno.
+
+**6. Attachment URL expiry en ChatMessage**
+- Las signed URLs de imágenes en chat tienen TTL de 1h. Después de 1h, las imágenes en mensajes antiguos muestran error. Solución: regenerar URL al montar el componente si `created_at` del mensaje > 55 minutos.

@@ -6,6 +6,11 @@ import crypto from 'crypto';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generateUniqueSlug } from '@/lib/workspace/generateUniqueSlug';
+import { sendEmail } from '@/lib/emails/resend';
+import { buildInvitationEmail } from '@/lib/emails/InvitationEmail';
+import { buildWelcomeEmail }    from '@/lib/emails/WelcomeEmail';
+
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://lab.dreamware.studio';
 
 /**
  * Guard: platform admin only (same as assertAdmin in app/admin/actions.js).
@@ -93,6 +98,28 @@ export async function createClientAndOwner(workspaceData, ownerEmail, ownerName)
       .eq('id', existingUser.id)
       .is('full_name', null);
 
+    // Phase 6: Send welcome email (user already has an account)
+    try {
+      const { data: adminProfile } = await admin
+        .from('profiles')
+        .select('full_name')
+        .eq('id', adminUser.id)
+        .single();
+
+      const emailPayload = buildWelcomeEmail({
+        recipientName:  ownerName,
+        recipientEmail: ownerEmail,
+        workspaceName:  workspace.name,
+        workspaceSlug:  workspace.slug,
+        role:           'owner',
+        inviterName:    adminProfile?.full_name || null,
+      });
+
+      await sendEmail({ to: ownerEmail, ...emailPayload });
+    } catch (emailErr) {
+      console.error('[createClientAndOwner] Welcome email failed (non-fatal):', emailErr);
+    }
+
   } else {
     // 4. Create invitation for the email
     const token = crypto.randomBytes(32).toString('base64url');
@@ -108,9 +135,28 @@ export async function createClientAndOwner(workspaceData, ownerEmail, ownerName)
         expires_at:   new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       });
 
-    // TODO (Phase 6): send onboarding email via Resend
-    // await sendWelcomeClientEmail({ email: ownerEmail, name: ownerName, token, workspace });
-    console.log(`[createClientAndOwner] Invitation created for ${ownerEmail}. Token: ${token}`);
+    // Phase 6: Send onboarding invitation email via Resend.
+    // Non-fatal: if Resend fails, admin can copy the link from the members panel.
+    try {
+      const { data: adminProfile } = await admin
+        .from('profiles')
+        .select('full_name')
+        .eq('id', adminUser.id)
+        .single();
+
+      const inviteLink = `${BASE_URL}/invitations/${token}`;
+      const emailPayload = buildInvitationEmail({
+        recipientEmail: ownerEmail,
+        workspaceName:  workspace.name,
+        role:           'owner',
+        inviterName:    adminProfile?.full_name || null,
+        inviteLink,
+      });
+
+      await sendEmail({ to: ownerEmail, ...emailPayload });
+    } catch (emailErr) {
+      console.error('[createClientAndOwner] Invitation email failed (non-fatal):', emailErr);
+    }
   }
 
   revalidatePath('/admin/clients');

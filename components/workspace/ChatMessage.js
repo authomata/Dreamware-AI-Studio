@@ -88,8 +88,13 @@ export default function ChatMessage({
       {/* Avatar */}
       <div className="shrink-0 mt-0.5">
         <MemberAvatar
-          profile={{ full_name: author.full_name, avatar_url: author.avatar_url, email: author.email }}
+          member={{
+            role:    null,
+            profile: { full_name: author.full_name, avatar_url: author.avatar_url },
+            email:   author.email,
+          }}
           size="sm"
+          showTooltip={false}
         />
       </div>
 

@@ -63,11 +63,13 @@ export default function MemberAvatar({ member, size = 'md', showTooltip = true }
         )}
       </div>
 
-      {/* Online dot / role indicator */}
-      <span
-        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-black ${dotColor}`}
-        aria-hidden="true"
-      />
+      {/* Online dot / role indicator — hidden when no role provided (e.g. chat context) */}
+      {member.role && (
+        <span
+          className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-black ${dotColor}`}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Tooltip */}
       {showTooltip && (

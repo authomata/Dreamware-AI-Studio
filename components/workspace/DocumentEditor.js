@@ -14,6 +14,33 @@ import DocumentToolbar from './DocumentToolbar';
 import MentionList from './MentionList';
 
 // ---------------------------------------------------------------------------
+// CustomMention — extends Mention to explicitly declare id + label attrs.
+//
+// Tiptap v3's built-in Mention does list both attrs in addAttributes(), but
+// configure() appears to not wire them into the ProseMirror schema in certain
+// call patterns, causing toJSON() to emit {"type":"mention"} with no attrs.
+// Extending the node class here gives us full ownership of the schema attrs
+// so serialization is guaranteed to include id and label.
+// ---------------------------------------------------------------------------
+const CustomMention = Mention.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),          // keeps mentionSuggestionChar from parent
+      id: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-id'),
+        renderHTML: (attrs) => (attrs.id ? { 'data-id': attrs.id } : {}),
+      },
+      label: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-label'),
+        renderHTML: (attrs) => (attrs.label ? { 'data-label': attrs.label } : {}),
+      },
+    };
+  },
+});
+
+// ---------------------------------------------------------------------------
 // CommentMark — custom Tiptap mark that highlights commented text.
 // Stored in the document JSON as { type: 'comment', attrs: { commentId, resolved } }.
 // Renders as <span data-comment-id="..." data-resolved="...">text</span>
@@ -149,25 +176,47 @@ export default function DocumentEditor({
 
       CommentMark,
 
-      Mention.configure({
+      CustomMention.configure({
         HTMLAttributes: { class: 'doc-mention' },
-        // Tiptap v3: use renderHTML (renderLabel is deprecated and unreliable).
-        // options.HTMLAttributes is already merged by the extension with
-        // { data-type: 'mention' } + our { class: 'doc-mention' }.
-        renderHTML({ options, node }) {
+        // Render HTML for the mention node — reads straight from persisted attrs.
+        // self-contained: no state lookups, safe on any client that loads the doc.
+        renderHTML({ node }) {
           const display = node.attrs.label ?? node.attrs.id ?? '';
-          return ['span', options.HTMLAttributes, `@${display}`];
+          return [
+            'span',
+            {
+              class:        'doc-mention',
+              'data-type':  'mention',
+              'data-id':    node.attrs.id    ?? '',
+              'data-label': node.attrs.label ?? '',
+            },
+            `@${display}`,
+          ];
         },
         suggestion: {
           items: ({ query }) => {
             if (!query) return members.slice(0, 8);
             const q = query.toLowerCase();
             return members
-              .filter(m => m.label.toLowerCase().includes(q))
+              .filter(m => (m.label || '').toLowerCase().includes(q))
               .slice(0, 8);
           },
-          // No custom command — Tiptap v3 default spreads { ...props, mentionSuggestionChar }
-          // so { id, label } from MentionList are persisted in the node attrs automatically.
+          // Explicit command: persist { id, label } into attrs. Do NOT rely on
+          // the Tiptap default which spreads props — it doesn't include label
+          // consistently across versions.
+          command: ({ editor, range, props }) => {
+            editor
+              .chain()
+              .focus()
+              .insertContentAt(range, [
+                {
+                  type:  'mention',
+                  attrs: { id: props.id, label: props.label },
+                },
+                { type: 'text', text: ' ' },
+              ])
+              .run();
+          },
           render: () => {
             let component;
             let popup;
@@ -237,6 +286,20 @@ export default function DocumentEditor({
       if (!canEdit) return;
       const content = ed.getJSON();
       lastSavedRef.current.content = content;
+
+      // DEV VERIFICATION — confirm mention attrs survive toJSON()
+      if (process.env.NODE_ENV === 'development') {
+        const mentions = [];
+        const findMentions = (node) => {
+          if (node.type === 'mention') mentions.push(node);
+          if (node.content) node.content.forEach(findMentions);
+        };
+        findMentions(content);
+        if (mentions.length > 0) {
+          console.log('[DocumentEditor] mentions in JSON:', JSON.stringify(mentions, null, 2));
+        }
+      }
+
       scheduleSave({ content });
     },
   });

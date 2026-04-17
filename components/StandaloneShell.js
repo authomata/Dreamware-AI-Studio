@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useSupabaseHistory } from '@/hooks/useSupabaseHistory';
 import { useSupabaseCharacters } from '@/hooks/useSupabaseCharacters';
 import WorkspaceSwitcher from '@/components/workspace/WorkspaceSwitcher';
+import { Shield } from 'lucide-react';
 import { ImageStudio, VideoStudio, LipSyncStudio, CinemaStudio, CharacterStudio, StoryStudio, getUserBalance } from 'studio';
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
@@ -98,6 +99,7 @@ export default function StandaloneShell() {
   const [keyLoading, setKeyLoading] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
   const [pendingAnimateUrl, setPendingAnimateUrl] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // ── Supabase history per studio type ────────────────────────────────────────
   const imageHistory   = useSupabaseHistory('image');
@@ -133,9 +135,11 @@ export default function StandaloneShell() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('muapi_key')
+        .select('muapi_key, role')
         .eq('id', user.id)
         .single();
+
+      if (profile?.role === 'admin') setIsAdmin(true);
 
       if (profile?.muapi_key) {
         setApiKey(profile.muapi_key);
@@ -291,8 +295,19 @@ export default function StandaloneShell() {
           </div>
         </div>
 
-        {/* Right: workspace switcher + balance + avatar */}
+        {/* Right: admin link + workspace switcher + balance + avatar */}
         <div className="flex items-center gap-3">
+          {/* Admin shortcut — only for platform admins */}
+          {isAdmin && (
+            <a
+              href="/admin"
+              title="Administración"
+              className="w-8 h-8 rounded-lg border border-white/[0.08] flex items-center justify-center text-white/40 hover:text-[#d9ff00] hover:border-[#d9ff00]/30 transition-all duration-200"
+            >
+              <Shield className="w-3.5 h-3.5" />
+            </a>
+          )}
+
           {/* Workspace switcher — only shown when the user belongs to ≥1 workspace */}
           {workspaces.length > 0 && (
             <WorkspaceSwitcher workspaces={workspaces} currentSlug={null} />

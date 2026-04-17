@@ -27,7 +27,13 @@ const NAV_ITEMS = [
  *
  * @param {{ workspace: import('@/lib/workspace/getWorkspaceBySlug').WorkspaceWithMembership }} props
  */
-export default function WorkspaceSidebar({ workspace }) {
+/**
+ * @param {{
+ *   workspace: import('@/lib/workspace/getWorkspaceBySlug').WorkspaceWithMembership,
+ *   chatUnread?: number
+ * }} props
+ */
+export default function WorkspaceSidebar({ workspace, chatUnread = 0 }) {
   const pathname  = usePathname();
   const base      = `/w/${workspace.slug}`;
   const isAdmin   = ['owner', 'admin'].includes(workspace.member_role);
@@ -73,6 +79,7 @@ export default function WorkspaceSidebar({ workspace }) {
             ? pathname === base
             : pathname.startsWith(href);
           const isLive   = item.phase <= LIVE_PHASE;
+          const unread   = item.label === 'Chat' && !isActive ? chatUnread : 0;
 
           if (!isLive) {
             return (
@@ -99,7 +106,12 @@ export default function WorkspaceSidebar({ workspace }) {
               `}
             >
               <item.icon className="w-4 h-4 flex-shrink-0" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {unread > 0 && (
+                <span className="ml-auto text-xs font-semibold bg-zinc-600 text-white rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
+                  {unread > 99 ? '99+' : unread}
+                </span>
+              )}
             </Link>
           );
         })}

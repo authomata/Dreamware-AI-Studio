@@ -5,7 +5,78 @@ su checklist de verificación manual está aprobado por Andrés.
 
 ## [Unreleased]
 
-## Fase 4 — Documentos WYSIWYG con Tiptap (2026-04-16) — ⏳ Pendiente aplicación de migración y verificación manual
+## Fase 5 — Chat del workspace (2026-04-16) — ⏳ Pendiente aplicación de migración y verificación manual
+
+### Creado
+
+**Dependencias instaladas:**
+- `react-markdown@^10.1.0` — renderizado de markdown en mensajes de chat
+
+**Migración (pendiente de aplicar por Andrés):**
+- `supabase/migrations/20260425000001_chat.sql` — tabla `chat_messages` (body, attachments jsonb, reply_to_id auto-thread, edited_at, author_id → auth.users FK). Tabla `chat_reads` (PK compuesto workspace_id+user_id, last_read_message_id, last_read_at). RLS: viewer+ SELECT, commenter+ INSERT, author UPDATE, author-o-admin DELETE en `chat_messages`; user-own-only en `chat_reads`. Realtime en `chat_messages`. Trigger SECURITY DEFINER `notify_on_chat_mention`: parsea `@uuid` en body con regexp, notifica a miembros mencionados si siguen en el workspace (JOIN directo, no `is_workspace_member()` en SECURITY DEFINER). COALESCE(full_name, email, 'Alguien') en label del notificador. Assertions + verification queries.
+
+**Server Actions (`app/w/[slug]/chat/actions.js`):**
+- `sendChatMessage(workspaceId, body, attachments, replyToId)` — commenter+
+- `editChatMessage(messageId, newBody)` — solo autor, ventana 15 minutos desde `created_at`
+- `deleteChatMessage(messageId, workspaceId)` — autor o admin
+- `markChatRead(workspaceId, messageId)` — UPSERT en `chat_reads`
+- `getChatSignedUploadUrl(workspaceId, filename, mimeType)` — admin client, path `{workspace_id}/chat/{timestamp}-{filename}` en bucket `workspace-files`, sin registro en tabla `files`
+- `getChatAttachmentUrl(workspaceId, storagePath)` — signed download URL 1h
+
+**Componentes nuevos:**
+- `components/workspace/ChatPanel.js` — lista de mensajes con scroll invertido (nuevo al fondo). Realtime `postgres_changes` en `chat_messages` por `workspace_id` (INSERT UPSERT para deduplicar optimistas, UPDATE/DELETE en vivo). Paginación cursor-based por `created_at` via IntersectionObserver en sentinel superior. Auto-scroll al fondo cuando llega mensaje nuevo (solo si el user ya estaba ahí). `markChatRead` cuando el user llega al fondo. Upload de adjuntos via `getChatSignedUploadUrl` + PUT a Storage.
+- `components/workspace/ChatMessage.js` — avatar (MemberAvatar), nombre, timestamp relativo (date-fns/es), body en react-markdown con resolución de `@uuid → @label`. Acciones hover: responder, editar (15-min window), eliminar (confirmación 2 clicks). Indicador "(editado)". Attachment preview inline para imágenes, link para otros tipos. Reply context (CornerDownRight) si es reply.
+- `components/workspace/ChatComposer.js` — textarea autogrow. @mention inline: detecta `@\S*` en cursor, popup nativo (sin tippy) con resultados filtrados, navegación ↑↓, Enter para insertar `@uuid` en body. Adjuntar archivos (Paperclip → file input). Reply-to banner con cancelar. ⌘↵ para enviar. Markdown hint en el pie.
+
+**Ruta:**
+- `app/w/[slug]/chat/page.js` — SSR: últimos 50 mensajes + profiles + emails (two-step, admin.listUsers). Members para @mention (two-step PGRST200 pattern). Permisos (canWrite, isAdmin). hasMore + oldestCreatedAt para paginación.
+
+**Badge de no leídos:**
+- `app/w/[slug]/layout.js` — calcula `chatUnread` en el server: `COUNT(chat_messages WHERE created_at > last_read_at AND author_id != user.id)`. Falla silenciosamente si la tabla no existe (pre-migración). Pasa `chatUnread` prop a `WorkspaceSidebar`.
+- `components/workspace/WorkspaceSidebar.js` — acepta `chatUnread` prop, muestra badge numérico en el item "Chat" cuando `chatUnread > 0` y no estás en `/chat`. Máximo "99+".
+
+### Modificado
+- `components/workspace/phase-status.js` — `LIVE_PHASE = 5`, `chat.href = (slug) => /w/${slug}/chat`. El sidebar y dashboard habilitan "Chat" automáticamente.
+- `app/w/[slug]/layout.js` — añade cálculo de `chatUnread` + prop a sidebar.
+- `components/workspace/WorkspaceSidebar.js` — acepta y muestra badge de no leídos.
+
+### ⚠️ Acciones pendientes antes de verificar
+
+1. **Aplicar migración en Supabase Dashboard (SQL Editor):**
+   - `supabase/migrations/20260425000001_chat.sql`
+   - Revisar assertions en el DO block — deben pasar sin ERROR
+
+2. **Verificar Realtime en Supabase Dashboard:**
+   - Settings → Realtime → Publicaciones → `supabase_realtime`
+   - Confirmar que `chat_messages` aparece
+
+3. **Verificación E2E:**
+   - Navegar a `/w/[slug]/chat` — lista vacía, compositor visible
+   - Escribir mensaje → enter → aparece inmediatamente (optimista)
+   - Segundo usuario abre chat → ve el mensaje en tiempo real (Realtime)
+   - @ para mencionar → popup aparece con miembros → seleccionar → `@uuid` insertado en body → mensaje enviado → trigger notifica al mencionado
+   - Responder a mensaje → banner reply visible → enviar → queda anidado bajo el original
+   - Editar mensaje (dentro de 15 min) → (editado) visible
+   - Editar después de 15 min → error esperado
+   - Eliminar mensaje → desaparece en tiempo real para todos
+   - Adjuntar imagen → preview inline
+   - Adjuntar PDF → link de descarga
+   - Scroll up → carga página anterior (IntersectionObserver)
+   - Badge en sidebar: segundo usuario no leído → badge numérico
+   - Badge desaparece al hacer scroll to bottom (markChatRead)
+   - Viewer: ve mensajes, no ve compositor (solo texto informativo)
+
+---
+
+## Fase 4 — Documentos WYSIWYG con Tiptap (2026-04-16) — ✅ Verificada con deuda técnica conocida — Documentos WYSIWYG con Tiptap (2026-04-16) — ✅ Verificada con deuda técnica conocida
+
+### ⚠️ DEUDA TÉCNICA — Menciones @mention
+
+Las menciones con @ se insertan visualmente bien en el cliente que las escribe, pero los attrs (`id`, `label`) no se persisten al JSON de Tiptap v3 al serializar. Otros clientes ven solo `@` vacío o `@null`.
+
+Causa raíz no resuelta después de 3 iteraciones. Requiere investigación más profunda de cómo Tiptap v3 maneja `addAttributes()` en extensiones extendidas vs configuradas. No bloquea el uso del editor — el resto del WYSIWYG (formato, comentarios, autosave, threading) funciona correctamente.
+
+---
 
 ### Creado
 

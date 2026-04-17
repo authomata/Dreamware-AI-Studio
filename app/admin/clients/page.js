@@ -1,6 +1,4 @@
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { archiveClient, restoreClient } from './actions';
 import { formatDistanceToNow } from 'date-fns';
@@ -9,13 +7,7 @@ import { Plus } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-async function assertAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (profile?.role !== 'admin') redirect('/');
-}
+// Auth guard is handled by app/admin/layout.js
 
 const PLAN_LABELS = {
   collaboration: 'Collaboration',
@@ -23,7 +15,6 @@ const PLAN_LABELS = {
 };
 
 export default async function ClientsPage() {
-  await assertAdmin();
   const admin = createAdminClient();
 
   // Fetch all workspaces (all types, including archived)

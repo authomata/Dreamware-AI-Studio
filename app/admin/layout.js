@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import AdminSidebar from '@/components/admin/AdminSidebar';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,5 +18,12 @@ export default async function AdminLayout({ children }) {
 
   if (profile?.role !== 'admin') redirect('/studio');
 
-  return <>{children}</>;
+  return (
+    <div className="h-screen bg-[#0e0e0e] text-white flex overflow-hidden">
+      <AdminSidebar />
+      <main className="flex-1 overflow-y-auto">
+        {children}
+      </main>
+    </div>
+  );
 }

@@ -160,12 +160,13 @@ BEGIN
     END IF;
 
     INSERT INTO notifications (
-      workspace_id, user_id, type, body, link, read_at, created_at
+      workspace_id, user_id, type, title, body, link, read_at, created_at
     ) VALUES (
       NEW.workspace_id,
       v_mentioned_id,
-      'chat_mention',
+      'chat_message',
       v_author_label || ' te mencionó en el chat',
+      LEFT(NEW.body, 120),
       '/w/' || v_workspace_slug || '/chat',
       NULL,
       now()
